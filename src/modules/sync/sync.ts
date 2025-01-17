@@ -9,14 +9,12 @@ import {
   addElementsIntoSnippetsWithoutReferences,
   addSnippetsReferences,
   addSnippetsWithoutReferences,
-  deleteContentTypeSnippets,
   updateSnippets,
 } from "./sync/snippets.js";
 import { syncSpaces } from "./sync/spaces.js";
 import { syncTaxonomies } from "./sync/taxonomy.js";
-import { addTypesWithoutReferences, deleteContentTypes, updateContentTypesAndAddReferences } from "./sync/types.js";
+import { addTypesWithoutReferences, updateContentTypesAndAddReferences } from "./sync/types.js";
 import { isOp } from "./sync/utils.js";
-import { updateWebSpotlight } from "./sync/webSpotlight.js";
 import { syncWorkflows } from "./sync/workflows.js";
 import { DiffModel } from "./types/diffModel.js";
 
@@ -79,17 +77,17 @@ export const sync = async (
   }
 
   // uses a created/updated type when enabling and disables before deleting the root type
-  if (entities.has("webSpotlight")) {
-    await updateWebSpotlight(client, diff.webSpotlight, logOptions);
-  }
+  // if (entities.has("webSpotlight")) {
+  //   await updateWebSpotlight(client, diff.webSpotlight, logOptions);
+  // }
 
-  if (entities.has("contentTypes")) {
-    await deleteContentTypes(client, diff.contentTypes, logOptions);
-  }
+  // if (entities.has("contentTypes")) {
+  //   await deleteContentTypes(client, diff.contentTypes, logOptions);
+  // }
 
-  if (entities.has("contentTypeSnippets")) {
-    await deleteContentTypeSnippets(client, diff.contentTypeSnippets, logOptions);
-  }
+  // if (entities.has("contentTypeSnippets")) {
+  //   await deleteContentTypeSnippets(client, diff.contentTypeSnippets, logOptions);
+  // }
 
   // replace, remove, move operations
   if (entities.has("contentTypeSnippets")) {

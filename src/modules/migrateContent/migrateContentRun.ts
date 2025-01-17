@@ -1,4 +1,4 @@
-import { extractAsync, importAsync, migrateAsync } from "@kontent-ai/migration-toolkit";
+import { extractAsync, importAsync, Logger, migrateAsync } from "@kontent-ai/migration-toolkit";
 
 import { logInfo, LogOptions } from "../../log.js";
 import { createClientDelivery, createManagementApiUrl } from "../../utils/client.js";
@@ -9,6 +9,7 @@ export type MigrateContentRunParams = Readonly<
   & {
     targetEnvironmentId: string;
     targetApiKey: string;
+    logger?: Logger;
     skipFailedItems?: boolean;
     kontentUrl?: string;
   }
@@ -103,6 +104,7 @@ export const migrateContentRunInternal = async (
       items: itemsCodenames.map(i => ({ itemCodename: i, languageCodename: params.language })),
       baseUrl: apply(createManagementApiUrl, params.kontentUrl),
     },
+    logger: params.logger,
   });
 
   logInfo(params, "standard", `All items successfully migrated`);
