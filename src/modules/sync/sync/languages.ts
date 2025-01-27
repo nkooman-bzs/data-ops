@@ -14,6 +14,16 @@ export const syncLanguages = async (
   operations: DiffModel["languages"],
   logOptions: LogOptions,
 ) => {
+  if (operations.deleted.size) {
+    logInfo(logOptions, "standard", "Deactivating languages");
+
+    await serially(
+      [...operations.deleted].map(codename => () => deleteLanguage(client, codename)),
+    );
+  } else {
+    logInfo(logOptions, "standard", "No languages to deactivate");
+  }
+
   if (operations.added.length) {
     logInfo(logOptions, "standard", "Adding languages");
     await serially(operations.added.filter(op => !op.is_default).map(l => () => addLanguage(client, l)));
@@ -28,9 +38,13 @@ export const syncLanguages = async (
       ([codename, operations]) => [codename, operations.map(transformLanguagePatchOperation)] as const,
     );
 
-    const sortedOperations = transformedOperations.toSorted(([, operations], [, operations2]) =>
+    const filteredOperations = transformedOperations.filter(([, operations]) => operations.length > 0);
+    
+    const sortedOperations = filteredOperations.toSorted(([, operations], [, operations2]) =>
       operationsToOrdNumb(operations) - operationsToOrdNumb(operations2)
     );
+
+    logInfo(logOptions, "standard", JSON.stringify(sortedOperations, null, 2));
 
     await serially(
       sortedOperations.map(([codename, operations]) => () => modifyLanguage(client, codename, operations)),
@@ -38,22 +52,12 @@ export const syncLanguages = async (
   } else {
     logInfo(logOptions, "standard", "No languages to update");
   }
-
-  if (operations.deleted.size) {
-    logInfo(logOptions, "standard", "Deactivating languages");
-
-    await serially(
-      [...operations.deleted].map(codename => () => deleteLanguage(client, codename)),
-    );
-  } else {
-    logInfo(logOptions, "standard", "No languages to deactivate");
-  }
 };
 
-const addLanguage = (client: ManagementClient, langauge: LanguageModels.IAddLanguageData) =>
+const addLanguage = (client: ManagementClient, language: LanguageModels.IAddLanguageData) =>
   client
     .addLanguage()
-    .withData(langauge)
+    .withData(language)
     .toPromise();
 
 const modifyLanguage = (
