@@ -10,6 +10,7 @@ import {
   Handler,
   makeAdjustOperationHandler,
   makeArrayHandler,
+  makeCodenameArrayHandler,
   makeCodenameObjectHandler,
   makeObjectHandler,
   makeOrderingHandler,
@@ -35,8 +36,14 @@ import {
 import { transformGuidelinesElementToAddModel } from "./transformToAddModel.js";
 
 type HandleContentTypeParams = Readonly<{
-  targetItemsByCodenames: ReadonlyMap<string, Readonly<{ id: string; codename: string }>>;
-  targetAssetsByCodenames: ReadonlyMap<string, Readonly<{ id: string; codename: string }>>;
+  targetItemsByCodenames: ReadonlyMap<
+    string,
+    Readonly<{ id: string; codename: string }>
+  >;
+  targetAssetsByCodenames: ReadonlyMap<
+    string,
+    Readonly<{ id: string; codename: string }>
+  >;
 }>;
 
 export const makeContentTypeHandler = (
@@ -48,23 +55,27 @@ export const makeContentTypeHandler = (
       name: baseHandler,
       content_groups: optionalHandler(
         makeOrderingHandler(
-          makeArrayHandler(g => g.codename ?? "", makeObjectHandler({ name: baseHandler })),
-          g => g.codename ?? "",
+          makeArrayHandler(
+            (g) => g.codename ?? "",
+            makeObjectHandler({ name: baseHandler }),
+          ),
+          (g) => g.codename ?? "",
         ),
       ),
       elements: {
         contextfulHandler: ({ source, target }) => {
           const ctx = {
             ...params,
-            targetAssetCodenames: new Set(params.targetAssetsByCodenames.keys()),
+            targetAssetCodenames: new Set(
+              params.targetAssetsByCodenames.keys(),
+            ),
             targetItemCodenames: new Set(params.targetItemsByCodenames.keys()),
             sourceTypeOrSnippet: source,
             targetTypeOrSnippet: target,
           };
 
           return makeOrderingHandler(
-            makeArrayHandler(
-              el => el.codename,
+            makeCodenameArrayHandler(
               makeUnionHandler("type", {
                 number: makeNumberElementHandler(ctx),
                 text: makeTextElementHandler(ctx),
@@ -80,17 +91,22 @@ export const makeContentTypeHandler = (
                 modular_content: makeLinkedItemsElementHandler(ctx),
                 multiple_choice: makeMultiChoiceElementHandler(ctx),
               }),
-              el =>
+              (el) =>
                 el.type === "guidelines"
-                  ? transformGuidelinesElementToAddModel({
-                    targetItemsReferencedFromSourceByCodenames: params.targetItemsByCodenames,
-                    targetAssetsReferencedFromSourceByCodenames: params.targetAssetsByCodenames,
-                  }, el) as SyncGuidelinesElement
+                  ? (transformGuidelinesElementToAddModel(
+                      {
+                        targetItemsReferencedFromSourceByCodenames:
+                          params.targetItemsByCodenames,
+                        targetAssetsReferencedFromSourceByCodenames:
+                          params.targetAssetsByCodenames,
+                      },
+                      el,
+                    ) as SyncGuidelinesElement)
                   : el,
             ),
-            e => e.codename,
+            (e) => e.codename,
             {
-              groupBy: e => e.content_group?.codename ?? "",
+              groupBy: (e) => e.content_group?.codename ?? "",
               // at the moment, snippet can't be referenced due to the bug.
               filter: (el) => el.type !== "snippet",
             },
@@ -135,7 +151,11 @@ const patchOpToOrdNumber = (op: PatchOperation) => {
   }
 };
 
-const contentTypeOperationsComparator = (el1: PatchOperation, el2: PatchOperation): number =>
-  patchOpToOrdNumber(el1) - patchOpToOrdNumber(el2);
+const contentTypeOperationsComparator = (
+  el1: PatchOperation,
+  el2: PatchOperation,
+): number => patchOpToOrdNumber(el1) - patchOpToOrdNumber(el2);
 
-export const wholeContentTypesHandler: Handler<ReadonlyArray<ContentTypeSyncModel>> = makeWholeObjectsHandler();
+export const wholeContentTypesHandler: Handler<
+  ReadonlyArray<ContentTypeSyncModel>
+> = makeWholeObjectsHandler();

@@ -172,6 +172,28 @@ type LazyHandler<T> = Readonly<{ lazyHandler: () => Handler<T> }>;
  *
  * This adds the "codename:" prefix before the codename in the path property.
  *
+ * @param createUpdateOps - update handler for entities inside the array (will only be called on entities with matching codenames)
+ *
+ * @param transformBeforeAdd - optional transformation of entities before they are added into the "addInto" patch operation
+ */
+export const makeCodenameArrayHandler = <
+  Entity extends { name?: string; codename?: string },
+>(
+  createUpdateOps: Handler<Entity> | LazyHandler<Entity>,
+  transformBeforeAdd: (el: Entity) => Entity = (x) => x,
+): Handler<readonly Entity[]> =>
+  makePrefixHandler(
+    "codename:",
+    (op) => !!op.path,
+    makeCodenameBaseArrayHandler(createUpdateOps, transformBeforeAdd),
+  );
+
+/**
+ * Creates patch operations for entities in an array.
+ * It matches the entities by codename and creates "addInto", "remove" and "replace" operations.
+ *
+ * This adds the "codename:" prefix before the codename in the path property.
+ *
  * @param getCodename - function to get the codename from an entity inside the array
  *
  * @param createUpdateOps - update handler for entities inside the array (will only be called on entities with matching codenames)
@@ -188,6 +210,83 @@ export const makeArrayHandler = <Entity>(
     (op) => !!op.path,
     makeBaseArrayHandler(getCodename, createUpdateOps, transformBeforeAdd),
   );
+
+/**
+ * Creates patch operations for entities in an array.
+ * It matches the entities by codename and creates "addInto", "remove" and "replace" operations.
+ *
+ * This does not add any prefix before the entity codename in path property.
+ *
+ * @param createUpdateOps - update handler for entities inside the array (will only be called on entities with matching codenames)
+ *
+ * @param transformBeforeAdd - optional transformation of entities before they are added into the "addInto" patch operation
+ */
+export const makeCodenameBaseArrayHandler =
+  <Entity extends { name?: string; codename?: string }>(
+    createUpdateOps: Handler<Entity> | LazyHandler<Entity>,
+    transformBeforeAdd: (el: Entity) => Entity = (x) => x,
+  ): Handler<readonly Entity[]> =>
+  (sourceValue, targetValue) => {
+    // needs to be function due to lazy handling
+    const getCreateUpdateOps = () =>
+      typeof createUpdateOps === "object"
+        ? createUpdateOps.lazyHandler()
+        : createUpdateOps;
+
+    const addAndUpdateOps = sourceValue.flatMap((source) => {
+      const targetEntity = targetValue.find(
+        (target) =>
+          target.codename === source.codename || target.name === source.name,
+      );
+
+      if (!targetEntity) {
+        return [
+          {
+            op: "addInto" as const,
+            path: "",
+            value: transformBeforeAdd(source),
+          },
+        ];
+      }
+
+      if (targetEntity.codename !== source.codename) {
+        return [
+          {
+            op: "replace" as const,
+            oldValue: targetEntity.codename,
+            value: source.codename,
+            path: `/${targetEntity.codename}/codename`,
+          },
+          ...getCreateUpdateOps()(source, targetEntity).map(
+            prefixOperationPath(source.codename ?? ""),
+          ),
+        ];
+      }
+
+      return [
+        ...getCreateUpdateOps()(source, targetEntity).map(
+          prefixOperationPath(source.codename ?? ""),
+        ),
+      ];
+    });
+
+    const removeOps = targetValue
+      .filter(
+        (target) =>
+          !sourceValue.find(
+            (source) =>
+              target.codename === source.codename ||
+              target.name === source.name,
+          ),
+      )
+      .map((target) => ({
+        op: "remove" as const,
+        path: "/" + target.codename,
+        oldValue: target,
+      }));
+
+    return [...addAndUpdateOps, ...removeOps];
+  };
 
 /**
  * Creates patch operations for entities in an array.

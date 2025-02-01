@@ -235,4 +235,53 @@ describe("makeContentTypeHandler", () => {
       }
     ]);
   });
+
+  it("creates replace operations for elements with codename changes, but with the same name", () => {
+    const source: ContentTypeSyncModel = {
+      name: "test type",
+      codename: "type",
+      elements: [
+        {
+          type: "number",
+          codename: "element_1",
+          name: "number",
+        },
+        {
+          type: "text",
+          codename: "element_2_new",
+          name: "text",
+        },
+      ],
+    };
+    const target: ContentTypeSyncModel = {
+      name: "test type",
+      codename: "type",
+      elements: [
+        {
+          type: "number",
+          codename: "element_1",
+          name: "number",
+        },
+        {
+          type: "text",
+          codename: "element_2",
+          name: "text",
+        },
+      ],
+    };
+
+    const result = makeContentTypeHandler({
+      targetItemsByCodenames: new Map(),
+      targetAssetsByCodenames: new Map(),
+    })(source, target);
+
+    expect(result).toStrictEqual([
+      {
+        op: "replace",
+        path: "/elements/codename:element_2/codename",
+        value: "element_2_new",
+        oldValue: "element_2"
+      }
+    ]);
+  });
 });
