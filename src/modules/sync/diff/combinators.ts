@@ -14,6 +14,68 @@ export type ContextfulHandler<Context, Entity> = Readonly<{
  *
  * @param innerHandlers - Provide handlers for each property inside the object.
  */
+export const makeCodenameObjectHandler =
+  <Entity extends { codename?: string; name?: string }>(
+    innerHandlers: Omit<
+      {
+        readonly [k in keyof Entity]-?:
+          | Handler<Entity[k]>
+          | ContextfulHandler<
+              Readonly<{ source: Entity; target: Entity }>,
+              Entity[k]
+            >;
+      },
+      "id" | "codename" | "external_id"
+    >,
+  ): Handler<Entity> =>
+  (sourceValue, targetValue) => {
+    const customOps: PatchOperation[] = [];
+
+    if (
+      sourceValue.codename !== targetValue.codename &&
+      sourceValue.name === targetValue.name
+    ) {
+      customOps.push({
+        op: "replace",
+        oldValue: targetValue.codename,
+        value: sourceValue.codename,
+        path: "/codename",
+      });
+    }
+
+    return (
+      Object.entries(innerHandlers) as unknown as [
+        keyof Entity & string,
+        (
+          | Handler<Entity[keyof Entity]>
+          | ContextfulHandler<
+              Readonly<{ source: Entity; target: Entity }>,
+              Entity[keyof Entity]
+            >
+        ),
+      ][]
+    )
+      .flatMap(([key, someHandler]) => {
+        const handler =
+          typeof someHandler === "function"
+            ? someHandler
+            : someHandler.contextfulHandler({
+                source: sourceValue,
+                target: targetValue,
+              });
+
+        return handler(sourceValue[key], targetValue[key]).map(
+          prefixOperationPath(key),
+        );
+      })
+      .concat(customOps);
+  };
+
+/**
+ * Create patch operations for changed properties inside the object.
+ *
+ * @param innerHandlers - Provide handlers for each property inside the object.
+ */
 export const makeObjectHandler =
   <Entity extends object>(
     innerHandlers: Omit<
@@ -417,10 +479,10 @@ export const constantHandler: Handler<unknown> = () => [];
  * The main purpose of this is to determine what objects (e.g. types or spaces) need to be added, removed or replaced.
  */
 export const makeWholeObjectsHandler = <
-  Object extends Readonly<{ codename: string; name: string }>,
+  Object extends Readonly<{ codename?: string; name?: string }>,
 >(): Handler<ReadonlyArray<Object>> =>
   makeArrayHandler(
-    (el) => el.codename,
+    (el) => el.codename ?? "",
     makeLeafObjectHandler({ name: () => false } as {
       [k in keyof Object]?: () => false;
     }), // Any property apart from "codename" | "id" | "external_id" works. We just need to make sure that this handler always returns a replace operation, because it is only called on objects with the same codename.
