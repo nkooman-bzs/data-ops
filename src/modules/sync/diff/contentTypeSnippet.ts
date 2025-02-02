@@ -8,8 +8,8 @@ import {
   baseHandler,
   Handler,
   makeAdjustOperationHandler,
-  makeArrayHandler,
-  makeObjectHandler,
+  makeCodenameArrayHandler,
+  makeCodenameObjectHandler,
   makeOrderingHandler,
   makeUnionHandler,
   makeWholeObjectsHandler,
@@ -41,7 +41,7 @@ type HandleContentTypeSnippetParams = Readonly<{
 export const makeContentTypeSnippetHandler = (
   params: HandleContentTypeSnippetParams,
 ): Handler<ContentTypeSnippetsSyncModel> =>
-  makeObjectHandler({
+  makeCodenameObjectHandler({
     name: baseHandler,
     elements: {
       contextfulHandler: ({ source, target }) => {
@@ -56,8 +56,7 @@ export const makeContentTypeSnippetHandler = (
         return makeAdjustOperationHandler(
           (ops) => ops.toSorted(snippetOperationsComparator),
           makeOrderingHandler(
-            makeArrayHandler(
-              (el) => el.codename,
+            makeCodenameArrayHandler(
               makeUnionHandler("type", {
                 number: makeNumberElementHandler(ctx),
                 text: makeTextElementHandler(ctx),

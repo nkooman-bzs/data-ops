@@ -102,4 +102,82 @@ describe("makeContentTypeSnippetHandler", () => {
       },
     ]);
   });
+
+  describe("match by name instead of codename", () => {
+    it("creates replace operations for codename changes for a content type snippet, but with the same name", () => {
+      const source: ContentTypeSnippetsSyncModel = {
+        name: "test type",
+        codename: "new_type",
+        elements: [],
+      };
+      const target: ContentTypeSnippetsSyncModel = {
+        name: "test type",
+        codename: "old_type",
+        elements: [],
+      };
+
+      const result = makeContentTypeSnippetHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/codename",
+          value: "new_type",
+          oldValue: "old_type",
+        },
+      ]);
+    });
+
+    it("creates replace operations for elements with codename changes, but with the same name", () => {
+      const source: ContentTypeSnippetsSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "number",
+            codename: "element_1",
+            name: "number",
+          },
+          {
+            type: "text",
+            codename: "element_2_new",
+            name: "text",
+          },
+        ],
+      };
+      const target: ContentTypeSnippetsSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "number",
+            codename: "element_1",
+            name: "number",
+          },
+          {
+            type: "text",
+            codename: "element_2",
+            name: "text",
+          },
+        ],
+      };
+
+      const result = makeContentTypeSnippetHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/elements/codename:element_2/codename",
+          value: "element_2_new",
+          oldValue: "element_2",
+        },
+      ]);
+    });
+  });
 });
