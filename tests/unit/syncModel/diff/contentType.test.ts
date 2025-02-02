@@ -166,8 +166,7 @@ describe("makeContentTypeHandler", () => {
         {
           type: "guidelines",
           codename: "guidelines",
-          guidelines:
-            `<p><a data-item-codename="item" data-item-external-id="itemE">item link</a>xyz <a data-asset-codename="asset1" data-asset-external-id="asset1E">asset link</a></p><figure data-asset-codename="asset2" data-asset-external-id="asset2E"><img src="#" data-asset-codename="asset2" data-asset-external-id="asset2E"/></figure><p><a data-asset-external-id="assetN">non-existing asset link</a></p>`,
+          guidelines: `<p><a data-item-codename="item" data-item-external-id="itemE">item link</a>xyz <a data-asset-codename="asset1" data-asset-external-id="asset1E">asset link</a></p><figure data-asset-codename="asset2" data-asset-external-id="asset2E"><img src="#" data-asset-codename="asset2" data-asset-external-id="asset2E"/></figure><p><a data-asset-external-id="assetN">non-existing asset link</a></p>`,
         },
       ],
     };
@@ -178,21 +177,26 @@ describe("makeContentTypeHandler", () => {
     };
 
     const result = makeContentTypeHandler({
-      targetItemsByCodenames: new Map([["item", { id: "itemId", codename: "item" }]]),
+      targetItemsByCodenames: new Map([
+        ["item", { id: "itemId", codename: "item" }],
+      ]),
       targetAssetsByCodenames: new Map([
         ["asset1", { id: "asset1Id", codename: "asset1" }],
         ["asset2", { id: "asset2Id", codename: "asset2" }],
       ]),
     })(source, target);
 
-    const resultWithFilteredSpaces = result
-      .map(op => ({
-        ...op,
-        value: op.op === "addInto" && typeof op.value === "object" && op.value !== null && "guidelines" in op.value
-          && typeof op.value.guidelines === "string"
+    const resultWithFilteredSpaces = result.map((op) => ({
+      ...op,
+      value:
+        op.op === "addInto" &&
+        typeof op.value === "object" &&
+        op.value !== null &&
+        "guidelines" in op.value &&
+        typeof op.value.guidelines === "string"
           ? { ...op.value, guidelines: removeSpaces(op.value.guidelines) }
           : {},
-      }));
+    }));
 
     expect(resultWithFilteredSpaces).toStrictEqual([
       {
@@ -209,79 +213,128 @@ describe("makeContentTypeHandler", () => {
     ]);
   });
 
-  it("creates replace operations for codename changes for a content type, but with the same name", () => {
-    const source: ContentTypeSyncModel = {
-      name: "test type",
-      codename: "new_type",
-      elements: [],
-    };
-    const target: ContentTypeSyncModel = {
-      name: "test type",
-      codename: "old_type",
-      elements: [],
-    };
+  describe("match by name instead of codename", () => {
+    it("creates replace operations for codename changes for a content type, but with the same name", () => {
+      const source: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "new_type",
+        elements: [],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "old_type",
+        elements: [],
+      };
 
-    const result = makeContentTypeHandler({
-      targetItemsByCodenames: new Map(),
-      targetAssetsByCodenames: new Map(),
-    })(source, target);
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
 
-    expect(result).toStrictEqual([
-      {
-        op: "replace",
-        path: "/codename",
-        value: "new_type",
-        oldValue: "old_type",
-      }
-    ]);
-  });
-
-  it("creates replace operations for elements with codename changes, but with the same name", () => {
-    const source: ContentTypeSyncModel = {
-      name: "test type",
-      codename: "type",
-      elements: [
+      expect(result).toStrictEqual([
         {
-          type: "number",
-          codename: "element_1",
-          name: "number",
+          op: "replace",
+          path: "/codename",
+          value: "new_type",
+          oldValue: "old_type",
         },
-        {
-          type: "text",
-          codename: "element_2_new",
-          name: "text",
-        },
-      ],
-    };
-    const target: ContentTypeSyncModel = {
-      name: "test type",
-      codename: "type",
-      elements: [
-        {
-          type: "number",
-          codename: "element_1",
-          name: "number",
-        },
-        {
-          type: "text",
-          codename: "element_2",
-          name: "text",
-        },
-      ],
-    };
+      ]);
+    });
 
-    const result = makeContentTypeHandler({
-      targetItemsByCodenames: new Map(),
-      targetAssetsByCodenames: new Map(),
-    })(source, target);
+    it("creates replace operations for elements with codename changes, but with the same name", () => {
+      const source: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "number",
+            codename: "element_1",
+            name: "number",
+          },
+          {
+            type: "text",
+            codename: "element_2_new",
+            name: "text",
+          },
+        ],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "number",
+            codename: "element_1",
+            name: "number",
+          },
+          {
+            type: "text",
+            codename: "element_2",
+            name: "text",
+          },
+        ],
+      };
 
-    expect(result).toStrictEqual([
-      {
-        op: "replace",
-        path: "/elements/codename:element_2/codename",
-        value: "element_2_new",
-        oldValue: "element_2"
-      }
-    ]);
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/elements/codename:element_2/codename",
+          value: "element_2_new",
+          oldValue: "element_2",
+        },
+      ]);
+    });
+
+    it("creates replace operations for content gruops with different codenames, but with the same name", () => {
+      const source: ContentTypeSyncModel = {
+        name: "some content type",
+        codename: "type",
+        content_groups: [
+          {
+            name: "group 1",
+            codename: "group1",
+          },
+          {
+            name: "group 2",
+            codename: "group2_new_codename",
+          },
+        ],
+        elements: [],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "some content type",
+        codename: "type",
+        content_groups: [
+          {
+            name: "group 1",
+            codename: "group1",
+          },
+          {
+            name: "group 2",
+            codename: "group2",
+          },
+        ],
+        elements: [],
+      };
+
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/content_groups/codename:group2/codename",
+          value: "group2_new_codename",
+          oldValue: "group2",
+        },
+      ]);
+    });
   });
 });

@@ -9,10 +9,8 @@ import {
   baseHandler,
   Handler,
   makeAdjustOperationHandler,
-  makeArrayHandler,
   makeCodenameArrayHandler,
   makeCodenameObjectHandler,
-  makeObjectHandler,
   makeOrderingHandler,
   makeUnionHandler,
   makeWholeObjectsHandler,
@@ -55,9 +53,8 @@ export const makeContentTypeHandler = (
       name: baseHandler,
       content_groups: optionalHandler(
         makeOrderingHandler(
-          makeArrayHandler(
-            (g) => g.codename ?? "",
-            makeObjectHandler({ name: baseHandler }),
+          makeCodenameArrayHandler(
+            makeCodenameObjectHandler({ name: baseHandler }),
           ),
           (g) => g.codename ?? "",
         ),

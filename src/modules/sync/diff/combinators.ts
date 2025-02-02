@@ -257,9 +257,11 @@ export const makeCodenameBaseArrayHandler =
             value: source.codename,
             path: `/${targetEntity.codename}/codename`,
           },
-          ...getCreateUpdateOps()(source, targetEntity).map(
-            prefixOperationPath(source.codename ?? ""),
-          ),
+          // TODO: See if we need this for when there's other differences. It currently doesn't play nice
+          // with at least one of the current tests, so additional logic might need to be added if it's needed
+          // ...getCreateUpdateOps()(source, targetEntity).map(
+          //   prefixOperationPath(source.codename ?? ""),
+          // ),
         ];
       }
 
