@@ -251,4 +251,30 @@ describe("makeTaxonomyGroupHandler", () => {
       },
     ]);
   });
+
+  describe("match by name instead of codename", () => {
+    it("correctly create patch operations for taxonomy when codename is different, but with the same name", () => {
+      const source: TaxonomySyncModel = {
+        name: "Taxonomy Group",
+        codename: "taxonomy_group_new",
+        terms: [],
+      };
+      const target: TaxonomySyncModel = {
+        name: "Taxonomy Group",
+        codename: "taxonomy_group",
+        terms: [],
+      };
+
+      const result = taxonomyGroupHandler(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/codename",
+          value: "taxonomy_group_new",
+          oldValue: "taxonomy_group",
+        },
+      ]);
+    });
+  });
 });

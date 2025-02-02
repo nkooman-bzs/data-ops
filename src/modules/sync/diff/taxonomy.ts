@@ -11,6 +11,7 @@ import {
   makeAdjustEntityHandler,
   makeAdjustOperationHandler,
   makeArrayHandler,
+  makeCodenameObjectHandler,
   makeObjectHandler,
   makeOrderingHandler,
   makeProvideHandler,
@@ -18,7 +19,7 @@ import {
 } from "./combinators.js";
 
 export const taxonomyGroupHandler: Handler<TaxonomySyncModel> =
-  makeObjectHandler({
+  makeCodenameObjectHandler({
     name: baseHandler,
     terms: {
       contextfulHandler: ({ target }) =>
