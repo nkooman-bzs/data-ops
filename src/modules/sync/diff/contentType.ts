@@ -56,7 +56,7 @@ export const makeContentTypeHandler = (
           makeCodenameArrayHandler(
             makeCodenameObjectHandler({ name: baseHandler }),
           ),
-          (g) => g.codename ?? "",
+          (g) => g.codename,
         ),
       ),
       elements: {
