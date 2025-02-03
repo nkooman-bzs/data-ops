@@ -15,7 +15,7 @@ export const languagesEntity = {
   fetchEntities: client => client.listLanguages().toAllPromise().then(res => res.data.items.map(l => l._raw)),
   serializeEntities: languages => JSON.stringify(languages),
   deserializeEntities: serialized => JSON.parse(serialized),
-  importEntities: async (client, entities, context) => {
+  importEntities: async (client, { entities, context, options }) => {
     const importDefaultLanguage = entities.find(l =>
       l.id === defaultLanguageId
     ) as LanguageContracts.ILanguageModelContract;
@@ -23,13 +23,23 @@ export const languagesEntity = {
       res.data
     );
 
+    const importLanguages = entities
+      .filter(l => l.id !== defaultLanguageId && (!options?.excludeInactiveLanguages || l.is_active))
+      .sort((l1, l2) => {
+        if (l1.is_active === l2.is_active) {
+          return 0;
+        }
+
+        return l1.is_active ? -1 : 1;
+      });
+
     // Order is important
     await updateProjectLanguage(client, projectDefaultLangauge, importDefaultLanguage, modifyByCodename);
-    await importLanguagesToProject(client, entities);
+    await importLanguagesToProject(client, importLanguages);
 
     const projectLanguages = await client.listLanguages().toAllPromise().then(res => res.data.items);
 
-    await updateFallbackLanguages(client, projectLanguages, entities);
+    await updateFallbackLanguages(client, projectLanguages, importLanguages);
 
     return {
       ...context,
@@ -45,25 +55,34 @@ export const languagesEntity = {
     };
   },
   cleanEntities: async (client, languages) => {
+    const defaultLangCodename = languages.find(l => l.is_default)?.codename ?? defaultLanguageCodename;
+
     await serially(
       languages
+        .filter(l => !l.is_default && l.is_active)
         .map((lang) => () =>
           client
             .modifyLanguage()
             .byLanguageId(lang.id)
-            .withData(createPatchToCleanLanguage(lang))
+            .withData([createReplaceFallbackLanguageOperation(defaultLangCodename)])
             .toPromise()
         ),
     );
 
     await serially(
       languages
-        .filter(l => !l.is_default)
+        .toSorted((l1, l2) => {
+          if (l1.is_active === l2.is_active) {
+            return 0;
+          }
+
+          return l1.is_active ? -1 : 1;
+        })
         .map((lang) => () =>
           client
             .modifyLanguage()
             .byLanguageId(lang.id)
-            .withData([createReplaceIsActiveOperation(false)])
+            .withData(createPatchToCleanLanguage(lang))
             .toPromise()
         ),
     );
@@ -114,6 +133,7 @@ const createPatchToCleanLanguage = (
       createReplaceFallbackLanguageOperation(defaultLanguageCodename),
       createReplaceCodenameOperation(language.id.slice(0, 7)),
       createReplaceNameOperation(language.id.slice(0, 7)),
+      createReplaceIsActiveOperation(false),
     ];
 
 const updateProjectLanguage = async (
@@ -138,6 +158,10 @@ const updateProjectLanguage = async (
 
   if (projectLanguage.name !== importLanguage.name) {
     operations.push(createReplaceNameOperation(importLanguage.name));
+  }
+
+  if (!importLanguage.is_active) {
+    operations.push(createReplaceIsActiveOperation(false));
   }
 
   if (operations.length > 0) {
@@ -177,7 +201,6 @@ const importLanguagesToProject = async (
 
   await serially(
     importLanguages
-      .filter(l => l.id !== defaultLanguageId)
       .map(importLanguage => () => {
         const languageByExternalId = projectLanguages.find(l => l.externalId === getLanguageExternalId(importLanguage));
 
@@ -196,7 +219,7 @@ const importLanguagesToProject = async (
               .withData({
                 name: importLanguage.name,
                 codename: importLanguage.codename,
-                is_active: true,
+                is_active: importLanguage.is_active,
                 external_id: importLanguage.external_id ?? `${importLanguage.codename}`.slice(0, 50),
               })
               .toPromise();
