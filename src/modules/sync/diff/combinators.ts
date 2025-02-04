@@ -391,6 +391,78 @@ export const makePrefixHandler =
  *
  * @param arrayHandler - handler that creates 'addInto', 'replace' and 'remove' operations.
  *
+ * @param options - Optional configuration object.
+ * @param options.groupBy - Optional function to obtain property on which the entities should be grouped by
+ * (if unspecified all entities are considered to be in the same group).
+ * Only entities inside groups are ordered, however, groups are not ordered amongst themselves.
+ * @param options.filter - Optional function to filter entities from source before ordering with move operations.
+ */
+export const makeCodenameOrderingHandler =
+  <Entity extends { name: string; codename: string }>(
+    arrayHandler: Handler<readonly Entity[]>,
+    {
+      groupBy = () => "",
+      filter = () => true,
+    }: {
+      groupBy?: (el: Entity) => string;
+      filter?: (el: Entity) => boolean;
+    } = {},
+  ): Handler<readonly Entity[]> =>
+  (sourceValue, targetValue) => {
+    const targetWithoutRemoved = targetValue.filter((target) =>
+      sourceValue.some(
+        (source) =>
+          source.name === target.name || source.codename === target.codename,
+      ),
+    );
+
+    const sortedSourceElements = sourceValue.toSorted((e1, e2) =>
+      groupBy(e1) < groupBy(e2) ? -2 : 0,
+    );
+    const sortedTargetElements = targetWithoutRemoved.toSorted((e1, e2) =>
+      groupBy(e1) < groupBy(e2) ? -2 : 0,
+    );
+
+    const sourceEntityGroups = sourceValue.reduce((prev, entity) => {
+      prev.set(groupBy(entity), [...(prev.get(groupBy(entity)) ?? []), entity]);
+
+      return prev;
+    }, new Map<string, Array<Entity>>());
+
+    const isSorted = zip(sortedSourceElements, sortedTargetElements).every(
+      ([e1, e2]) => e1.name === e2.name || e1.codename === e2.codename,
+    );
+
+    const moveOps = isSorted
+      ? []
+      : Array.from(sourceEntityGroups.values()).flatMap((group) => {
+          const filteredArray = group.filter(filter);
+
+          return filteredArray.length <= 1
+            ? []
+            : filteredArray.slice(1).map((entity, index) => ({
+                op: "move" as const,
+                path: `/codename:${entity.codename}`,
+                after: {
+                  codename: (filteredArray[index] as Entity).codename,
+                },
+              }));
+        });
+
+    return [...arrayHandler(sourceValue, targetValue), ...moveOps];
+  };
+
+/**
+ * Creates move operations for entities in an array.
+ * It matches the entities by codename and creates "move" operations and concatenates operations
+ * from arrayHandler.
+ *
+ * Unless the target is ordered same as the source, the algorithm generates one move operation
+ * for every element except the first one in each group and assigns them the "after" property
+ * to reference the previous element from source
+ *
+ * @param arrayHandler - handler that creates 'addInto', 'replace' and 'remove' operations.
+ *
  * @param getCodename - function to obtain codename from entity (entities are sorted based on codename)
  *
  * @param options - Optional configuration object.

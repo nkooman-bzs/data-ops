@@ -253,7 +253,7 @@ describe("makeTaxonomyGroupHandler", () => {
   });
 
   describe("match by name instead of codename", () => {
-    it("correctly create patch operations for taxonomy when codename is different, but with the same name", () => {
+    it("correctly creates patch operations for taxonomy when codename is different, but with the same name", () => {
       const source: TaxonomySyncModel = {
         name: "Taxonomy Group",
         codename: "taxonomy_group_new",
@@ -276,5 +276,53 @@ describe("makeTaxonomyGroupHandler", () => {
         },
       ]);
     });
+  });
+
+  it("correctly creates patch operations for taxonomy groups with nested terms when their codenames are different, but with the same names", () => {
+    const source: TaxonomySyncModel = {
+      name: "New group name",
+      codename: "taxonomy_group",
+      terms: [
+        {
+          name: "Term One",
+          codename: "term1_new",
+          terms: [],
+        },
+        {
+          ...makeTerm("term2"),
+        },
+      ],
+    };
+    const target: TaxonomySyncModel = {
+      name: "Old group name",
+      codename: "taxonomy_group",
+      terms: [
+        {
+          name: "Term One",
+          codename: "term1",
+          terms: [],
+        },
+        {
+          ...makeTerm("term2"),
+        },
+      ],
+    };
+
+    const result = taxonomyGroupHandler(source, target);
+
+    expect(result).toStrictEqual([
+      {
+        op: "replace",
+        path: "/name",
+        value: "New group name",
+        oldValue: "Old group name",
+      },
+      {
+        op: "replace",
+        path: "/terms/codename:term1/codename",
+        value: "term1_new",
+        oldValue: "term1",
+      },
+    ]);
   });
 });
