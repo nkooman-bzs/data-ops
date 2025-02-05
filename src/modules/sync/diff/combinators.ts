@@ -1,5 +1,8 @@
 import { zip } from "../../../utils/array.js";
-import { PatchOperation } from "../types/patchOperation.js";
+import {
+  PatchOperation,
+  ReplacePatchOperation,
+} from "../types/patchOperation.js";
 
 export type Handler<Entity> = (
   sourceValue: Entity,
@@ -249,27 +252,39 @@ export const makeCodenameBaseArrayHandler =
         ];
       }
 
-      if (targetEntity.codename !== source.codename) {
-        return [
-          {
-            op: "replace" as const,
-            oldValue: targetEntity.codename,
-            value: source.codename,
-            path: `/${targetEntity.codename}/codename`,
-          },
-          // TODO: See if we need this for when there's other differences. It currently doesn't play nice
-          // with at least one of the current tests, so additional logic might need to be added if it's needed
-          // ...getCreateUpdateOps()(source, targetEntity).map(
-          //   prefixOperationPath(source.codename ?? ""),
-          // ),
-        ];
-      }
-
-      return [
+      const ops = [
         ...getCreateUpdateOps()(source, targetEntity).map(
           prefixOperationPath(source.codename ?? ""),
         ),
       ];
+
+      if (targetEntity.codename !== source.codename) {
+        const codenameOp = {
+          op: "replace" as const,
+          oldValue: targetEntity.codename,
+          value: source.codename,
+          path: `/${targetEntity.codename}/codename`,
+        };
+
+        return [
+          codenameOp,
+          // Removes any duplicate codename operations that are generated from getCreateUpdateOps()
+          ...ops.filter(
+            (op) =>
+              !ops.some((op2) => {
+                const opCast = op as ReplacePatchOperation;
+                const op2Cast = op2 as ReplacePatchOperation;
+
+                return (
+                  opCast.oldValue === op2Cast.oldValue &&
+                  opCast.value === op2Cast.value
+                );
+              }),
+          ),
+        ];
+      }
+
+      return ops;
     });
 
     const removeOps = targetValue
