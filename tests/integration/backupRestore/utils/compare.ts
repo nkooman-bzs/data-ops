@@ -31,13 +31,18 @@ if (!API_KEY) {
 
 export type FilterParam = { include: ReadonlyArray<keyof AllEnvData> } | { exclude: ReadonlyArray<keyof AllEnvData> };
 
+export type EnvironmentsOptions = {
+  excludeInactiveLanguages?: boolean;
+};
+
 export const expectSameEnvironments = async (
   environmentId1: string,
   environmentId2: string,
   filterParam: FilterParam = { exclude: [] },
+  options: EnvironmentsOptions = {},
 ): Promise<void> => {
-  const data1 = await loadAllEnvData(environmentId1).then(prepareReferences);
-  const data2 = await loadAllEnvData(environmentId2).then(prepareReferences);
+  const data1 = await loadAllEnvData(environmentId1).then(res => prepareReferences(res, options));
+  const data2 = await loadAllEnvData(environmentId2).then(res => prepareReferences(res, options));
 
   expectSameAllEnvData(data1, data2, filterParam);
 };
@@ -143,17 +148,19 @@ const sortByCodename = <T extends { readonly codename: string }>(entities: Reado
 const sortTypesElements = (elements: ElementContracts.IContentTypeElementContract[]) =>
   elements.toSorted((e1, e2) => (e1 as any).content_group.id < (e2 as any).content_group.id ? -2 : 0);
 
-export const prepareReferences = (data: AllEnvData): AllEnvData => ({
+export const prepareReferences = (data: AllEnvData, options?: EnvironmentsOptions): AllEnvData => ({
   collections: data.collections.map(c => ({ ...c, id: "-", external_id: "-" })),
   spaces: data.spaces.map(createPrepareSpaceReferences(data)),
-  languages: data.languages.map((l, _, allLanguages) => ({
-    ...l,
-    id: "-",
-    external_id: "-",
-    fallback_language: l.fallback_language
-      ? { id: allLanguages.find(e => e.id === l.fallback_language?.id)?.codename ?? "non-existing-language" }
-      : undefined,
-  })),
+  languages: data.languages
+    .filter(l => options?.excludeInactiveLanguages ? l.is_active : true)
+    .map((l, _, allLanguages) => ({
+      ...l,
+      id: "-",
+      external_id: "-",
+      fallback_language: l.fallback_language
+        ? { id: allLanguages.find(e => e.id === l.fallback_language?.id)?.codename ?? "non-existing-language" }
+        : undefined,
+    })),
   previewUrls: createPreparePreviewUrlReferences(data)(data.previewUrls),
   taxonomies: data.taxonomies.map(prepareTaxonomyReferences),
   assetFolders: data.assetFolders.map(prepareFolderReferences),

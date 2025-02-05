@@ -76,12 +76,18 @@ export const makeLeafObjectHandler =
     transformBeforeReplace: (v: Entity) => unknown = (x) => x,
   ): Handler<Entity> =>
   (sourceValue, targetValue) => {
-    const shouldReplace = zip(
-      Object.keys(sourceValue) as (keyof typeof customComparers)[],
-      zip(Object.values(sourceValue), Object.values(targetValue)),
-    ).some(
-      ([key, [source, target]]) =>
-        !(customComparers[key]?.(source, target) ?? source === target),
+    const keys = new Set([
+      ...Object.keys(sourceValue),
+      ...Object.keys(targetValue),
+      ...Object.keys(customComparers),
+    ]) as Set<keyof Entity>;
+
+    const shouldReplace = Array.from(keys).some(
+      (key) =>
+        !(
+          customComparers[key]?.(sourceValue[key], targetValue[key]) ??
+          sourceValue[key] === targetValue[key]
+        ),
     );
 
     return shouldReplace
