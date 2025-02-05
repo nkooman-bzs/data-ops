@@ -1,4 +1,4 @@
-import { extractAsync, importAsync, Logger, migrateAsync } from "@kontent-ai/migration-toolkit";
+import { extractAsync, importAsync, Logger, migrateAsync, MigrationData } from "@kontent-ai/migration-toolkit";
 
 import { logInfo, LogOptions } from "../../log.js";
 import { createClientDelivery, createManagementApiUrl } from "../../utils/client.js";
@@ -12,6 +12,7 @@ export type MigrateContentRunParams = Readonly<
     logger?: Logger;
     skipFailedItems?: boolean;
     kontentUrl?: string;
+    mapMigrationData: (data: MigrationData) => MigrationData;
   }
   & (
     | {
@@ -104,6 +105,7 @@ export const migrateContentRunInternal = async (
       items: itemsCodenames.map(i => ({ itemCodename: i, languageCodename: params.language })),
       baseUrl: apply(createManagementApiUrl, params.kontentUrl),
     },
+    mapMigrationData: params.mapMigrationData,
     logger: params.logger,
   });
 
