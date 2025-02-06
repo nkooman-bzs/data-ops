@@ -1,5 +1,8 @@
 import { zip } from "../../../utils/array.js";
-import { PatchOperation } from "../types/patchOperation.js";
+import {
+  PatchOperation,
+  ReplacePatchOperation,
+} from "../types/patchOperation.js";
 
 export type Handler<Entity> = (
   sourceValue: Entity,
@@ -8,6 +11,70 @@ export type Handler<Entity> = (
 export type ContextfulHandler<Context, Entity> = Readonly<{
   contextfulHandler: (context: Context) => Handler<Entity>;
 }>;
+
+/**
+ * Create patch operations for changed properties inside the object.
+ *
+ * @param innerHandlers - Provide handlers for each property inside the object.
+ */
+export const makeCodenameObjectHandler =
+  <Entity extends { codename?: string; name?: string }>(
+    innerHandlers: Omit<
+      {
+        readonly [k in keyof Entity]-?:
+          | Handler<Entity[k]>
+          | ContextfulHandler<
+              Readonly<{ source: Entity; target: Entity }>,
+              Entity[k]
+            >;
+      },
+      "id" | "codename" | "external_id"
+    >,
+  ): Handler<Entity> =>
+  (sourceValue, targetValue) => {
+    const customOps: PatchOperation[] = [];
+
+    if (
+      sourceValue.codename !== targetValue.codename &&
+      sourceValue.name === targetValue.name &&
+      !!sourceValue.name &&
+      !!targetValue.name
+    ) {
+      customOps.push({
+        op: "replace",
+        oldValue: targetValue.codename,
+        value: sourceValue.codename,
+        path: "/codename",
+      });
+    }
+
+    return (
+      Object.entries(innerHandlers) as unknown as [
+        keyof Entity & string,
+        (
+          | Handler<Entity[keyof Entity]>
+          | ContextfulHandler<
+              Readonly<{ source: Entity; target: Entity }>,
+              Entity[keyof Entity]
+            >
+        ),
+      ][]
+    )
+      .flatMap(([key, someHandler]) => {
+        const handler =
+          typeof someHandler === "function"
+            ? someHandler
+            : someHandler.contextfulHandler({
+                source: sourceValue,
+                target: targetValue,
+              });
+
+        return handler(sourceValue[key], targetValue[key]).map(
+          prefixOperationPath(key),
+        );
+      })
+      .concat(customOps);
+  };
 
 /**
  * Create patch operations for changed properties inside the object.
@@ -110,6 +177,28 @@ type LazyHandler<T> = Readonly<{ lazyHandler: () => Handler<T> }>;
  *
  * This adds the "codename:" prefix before the codename in the path property.
  *
+ * @param createUpdateOps - update handler for entities inside the array (will only be called on entities with matching codenames)
+ *
+ * @param transformBeforeAdd - optional transformation of entities before they are added into the "addInto" patch operation
+ */
+export const makeCodenameArrayHandler = <
+  Entity extends { name?: string; codename?: string },
+>(
+  createUpdateOps: Handler<Entity> | LazyHandler<Entity>,
+  transformBeforeAdd: (el: Entity) => Entity = (x) => x,
+): Handler<readonly Entity[]> =>
+  makePrefixHandler(
+    "codename:",
+    (op) => !!op.path,
+    makeCodenameBaseArrayHandler(createUpdateOps, transformBeforeAdd),
+  );
+
+/**
+ * Creates patch operations for entities in an array.
+ * It matches the entities by codename and creates "addInto", "remove" and "replace" operations.
+ *
+ * This adds the "codename:" prefix before the codename in the path property.
+ *
  * @param getCodename - function to get the codename from an entity inside the array
  *
  * @param createUpdateOps - update handler for entities inside the array (will only be called on entities with matching codenames)
@@ -126,6 +215,98 @@ export const makeArrayHandler = <Entity>(
     (op) => !!op.path,
     makeBaseArrayHandler(getCodename, createUpdateOps, transformBeforeAdd),
   );
+
+/**
+ * Creates patch operations for entities in an array.
+ * It matches the entities by codename and creates "addInto", "remove" and "replace" operations.
+ *
+ * This does not add any prefix before the entity codename in path property.
+ *
+ * @param createUpdateOps - update handler for entities inside the array (will only be called on entities with matching codenames)
+ *
+ * @param transformBeforeAdd - optional transformation of entities before they are added into the "addInto" patch operation
+ */
+export const makeCodenameBaseArrayHandler =
+  <Entity extends { name?: string; codename?: string }>(
+    createUpdateOps: Handler<Entity> | LazyHandler<Entity>,
+    transformBeforeAdd: (el: Entity) => Entity = (x) => x,
+  ): Handler<readonly Entity[]> =>
+  (sourceValue, targetValue) => {
+    // needs to be function due to lazy handling
+    const getCreateUpdateOps = () =>
+      typeof createUpdateOps === "object"
+        ? createUpdateOps.lazyHandler()
+        : createUpdateOps;
+
+    const addAndUpdateOps = sourceValue.flatMap((source) => {
+      const targetEntity = targetValue.find(
+        (target) =>
+          target.codename === source.codename ||
+          (target.name === source.name && !!target.name && !!source.name),
+      );
+
+      if (!targetEntity) {
+        return [
+          {
+            op: "addInto" as const,
+            path: "",
+            value: transformBeforeAdd(source),
+          },
+        ];
+      }
+
+      const ops = [
+        ...getCreateUpdateOps()(source, targetEntity).map(
+          prefixOperationPath(source.codename ?? ""),
+        ),
+      ];
+
+      if (targetEntity.codename !== source.codename) {
+        const codenameOp = {
+          op: "replace" as const,
+          oldValue: targetEntity.codename,
+          value: source.codename,
+          path: `/${targetEntity.codename}/codename`,
+        };
+
+        return [
+          codenameOp,
+          // Removes any duplicate codename operations that are generated from getCreateUpdateOps()
+          ...ops.filter(
+            (op) =>
+              !ops.some((op2) => {
+                const opCast = op as ReplacePatchOperation;
+                const op2Cast = op2 as ReplacePatchOperation;
+
+                return (
+                  opCast.oldValue === op2Cast.oldValue &&
+                  opCast.value === op2Cast.value
+                );
+              }),
+          ),
+        ];
+      }
+
+      return ops;
+    });
+
+    const removeOps = targetValue
+      .filter(
+        (target) =>
+          !sourceValue.find(
+            (source) =>
+              target.codename === source.codename ||
+              (target.name === source.name && !!target.name && !!source.name),
+          ),
+      )
+      .map((target) => ({
+        op: "remove" as const,
+        path: "/" + target.codename,
+        oldValue: target,
+      }));
+
+    return [...addAndUpdateOps, ...removeOps];
+  };
 
 /**
  * Creates patch operations for entities in an array.
@@ -216,6 +397,81 @@ export const makePrefixHandler =
           }
         : op,
     );
+
+/**
+ * Creates move operations for entities in an array.
+ * It matches the entities by codename and creates "move" operations and concatenates operations
+ * from arrayHandler.
+ *
+ * Unless the target is ordered same as the source, the algorithm generates one move operation
+ * for every element except the first one in each group and assigns them the "after" property
+ * to reference the previous element from source
+ *
+ * @param arrayHandler - handler that creates 'addInto', 'replace' and 'remove' operations.
+ *
+ * @param options - Optional configuration object.
+ * @param options.groupBy - Optional function to obtain property on which the entities should be grouped by
+ * (if unspecified all entities are considered to be in the same group).
+ * Only entities inside groups are ordered, however, groups are not ordered amongst themselves.
+ * @param options.filter - Optional function to filter entities from source before ordering with move operations.
+ */
+export const makeCodenameOrderingHandler =
+  <Entity extends { name: string; codename: string }>(
+    arrayHandler: Handler<readonly Entity[]>,
+    {
+      groupBy = () => "",
+      filter = () => true,
+    }: {
+      groupBy?: (el: Entity) => string;
+      filter?: (el: Entity) => boolean;
+    } = {},
+  ): Handler<readonly Entity[]> =>
+  (sourceValue, targetValue) => {
+    const targetWithoutRemoved = targetValue.filter((target) =>
+      sourceValue.some(
+        (source) =>
+          source.codename === target.codename ||
+          (source.name === target.name && !!source.name && !!target.name),
+      ),
+    );
+
+    const sortedSourceElements = sourceValue.toSorted((e1, e2) =>
+      groupBy(e1) < groupBy(e2) ? -2 : 0,
+    );
+    const sortedTargetElements = targetWithoutRemoved.toSorted((e1, e2) =>
+      groupBy(e1) < groupBy(e2) ? -2 : 0,
+    );
+
+    const sourceEntityGroups = sourceValue.reduce((prev, entity) => {
+      prev.set(groupBy(entity), [...(prev.get(groupBy(entity)) ?? []), entity]);
+
+      return prev;
+    }, new Map<string, Array<Entity>>());
+
+    const isSorted = zip(sortedSourceElements, sortedTargetElements).every(
+      ([e1, e2]) =>
+        e1.codename === e2.codename ||
+        (e1.name === e2.name && !!e1.name && !!e2.name),
+    );
+
+    const moveOps = isSorted
+      ? []
+      : Array.from(sourceEntityGroups.values()).flatMap((group) => {
+          const filteredArray = group.filter(filter);
+
+          return filteredArray.length <= 1
+            ? []
+            : filteredArray.slice(1).map((entity, index) => ({
+                op: "move" as const,
+                path: `/codename:${entity.codename}`,
+                after: {
+                  codename: (filteredArray[index] as Entity).codename,
+                },
+              }));
+        });
+
+    return [...arrayHandler(sourceValue, targetValue), ...moveOps];
+  };
 
 /**
  * Creates move operations for entities in an array.

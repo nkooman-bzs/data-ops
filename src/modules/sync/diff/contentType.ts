@@ -9,8 +9,8 @@ import {
   baseHandler,
   Handler,
   makeAdjustOperationHandler,
-  makeArrayHandler,
-  makeObjectHandler,
+  makeCodenameArrayHandler,
+  makeCodenameObjectHandler,
   makeOrderingHandler,
   makeUnionHandler,
   makeWholeObjectsHandler,
@@ -49,13 +49,12 @@ export const makeContentTypeHandler = (
 ): Handler<ContentTypeSyncModel> =>
   makeAdjustOperationHandler(
     (arr) => arr.toSorted(contentTypeOperationsComparator),
-    makeObjectHandler({
+    makeCodenameObjectHandler({
       name: baseHandler,
       content_groups: optionalHandler(
         makeOrderingHandler(
-          makeArrayHandler(
-            (g) => g.codename,
-            makeObjectHandler({ name: baseHandler }),
+          makeCodenameArrayHandler(
+            makeCodenameObjectHandler({ name: baseHandler }),
           ),
           (g) => g.codename,
         ),
@@ -73,8 +72,7 @@ export const makeContentTypeHandler = (
           };
 
           return makeOrderingHandler(
-            makeArrayHandler(
-              (el) => el.codename,
+            makeCodenameArrayHandler(
               makeUnionHandler("type", {
                 number: makeNumberElementHandler(ctx),
                 text: makeTextElementHandler(ctx),

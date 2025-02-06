@@ -10,15 +10,15 @@ import {
   Handler,
   makeAdjustEntityHandler,
   makeAdjustOperationHandler,
-  makeArrayHandler,
-  makeObjectHandler,
-  makeOrderingHandler,
+  makeCodenameArrayHandler,
+  makeCodenameObjectHandler,
+  makeCodenameOrderingHandler,
   makeProvideHandler,
   makeWholeObjectsHandler,
 } from "./combinators.js";
 
 export const taxonomyGroupHandler: Handler<TaxonomySyncModel> =
-  makeObjectHandler({
+  makeCodenameObjectHandler({
     name: baseHandler,
     terms: {
       contextfulHandler: ({ target }) =>
@@ -44,12 +44,11 @@ type FlattenedSyncTaxonomy = Replace<TaxonomySyncModel, { terms: [] }> &
 export const makeFlattenedTaxonomyHandler = (
   topLevelTargetTermCodenames: ReadonlyArray<string>,
 ): Handler<ReadonlyArray<FlattenedSyncTaxonomy>> =>
-  makeOrderingHandler(
-    makeArrayHandler(
-      (t) => t.codename,
+  makeCodenameOrderingHandler(
+    makeCodenameArrayHandler(
       makeAdjustOperationHandler(
         (ops) => ops.map(stripPositionFromPath),
-        makeObjectHandler({
+        makeCodenameObjectHandler({
           name: baseHandler,
           terms: constantHandler,
           position: (sourcePos, targetPos) => {
@@ -89,7 +88,6 @@ export const makeFlattenedTaxonomyHandler = (
         }),
       ),
     ),
-    (t) => t.codename,
     { groupBy: (t) => t.position.join("/") },
   );
 

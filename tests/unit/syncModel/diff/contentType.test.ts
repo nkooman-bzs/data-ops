@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { makeContentTypeHandler } from "../../../../src/modules/sync/diff/contentType.ts";
-import { ContentTypeSyncModel } from "../../../../src/modules/sync/types/syncModel.ts";
+import {
+  ContentTypeSyncModel,
+  SyncTypeSnippetElement,
+} from "../../../../src/modules/sync/types/syncModel.ts";
 import { removeSpaces } from "./utils.ts";
 
 describe("makeContentTypeHandler", () => {
@@ -211,5 +214,187 @@ describe("makeContentTypeHandler", () => {
         },
       },
     ]);
+  });
+
+  describe("match by name instead of codename", () => {
+    it("creates replace operations for codename changes for a content type, but with the same name", () => {
+      const source: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "new_type",
+        elements: [],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "old_type",
+        elements: [],
+      };
+
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/codename",
+          value: "new_type",
+          oldValue: "old_type",
+        },
+      ]);
+    });
+
+    it("creates replace operations for elements with codename changes, but with the same name", () => {
+      const source: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "number",
+            codename: "element_1",
+            name: "number",
+          },
+          {
+            type: "text",
+            codename: "element_2_new",
+            name: "text",
+          },
+        ],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "number",
+            codename: "element_1",
+            name: "number",
+          },
+          {
+            type: "text",
+            codename: "element_2",
+            name: "text",
+          },
+        ],
+      };
+
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/elements/codename:element_2/codename",
+          value: "element_2_new",
+          oldValue: "element_2",
+        },
+      ]);
+    });
+
+    it("creates replace operations for content gruops with different codenames, but with the same name", () => {
+      const source: ContentTypeSyncModel = {
+        name: "some content type",
+        codename: "type",
+        content_groups: [
+          {
+            name: "group 1",
+            codename: "group1",
+          },
+          {
+            name: "group 2",
+            codename: "group2_new_codename",
+          },
+        ],
+        elements: [],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "some content type",
+        codename: "type",
+        content_groups: [
+          {
+            name: "group 1",
+            codename: "group1",
+          },
+          {
+            name: "group 2",
+            codename: "group2",
+          },
+        ],
+        elements: [],
+      };
+
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "replace",
+          path: "/content_groups/codename:group2/codename",
+          value: "group2_new_codename",
+          oldValue: "group2",
+        },
+      ]);
+    });
+
+    it("deletes existing snippet and adds the new one when codenames don't match", () => {
+      const source: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "snippet",
+            codename: "element_1_new",
+          } as SyncTypeSnippetElement,
+          {
+            type: "text",
+            codename: "element_2",
+            name: "text",
+          },
+        ],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "snippet",
+            codename: "element_1",
+          } as SyncTypeSnippetElement,
+          {
+            type: "text",
+            codename: "element_2",
+            name: "text",
+          },
+        ],
+      };
+
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "addInto",
+          path: "/elements",
+          value: {
+            type: "snippet",
+            codename: "element_1_new",
+          },
+        },
+        {
+          op: "remove",
+          path: "/elements/codename:element_1",
+          oldValue: {
+            type: "snippet",
+            codename: "element_1",
+          },
+        },
+      ]);
+    });
   });
 });
