@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { makeContentTypeHandler } from "../../../../src/modules/sync/diff/contentType.ts";
-import { ContentTypeSyncModel } from "../../../../src/modules/sync/types/syncModel.ts";
+import {
+  ContentTypeSyncModel,
+  SyncTypeSnippetElement,
+} from "../../../../src/modules/sync/types/syncModel.ts";
 import { removeSpaces } from "./utils.ts";
 
 describe("makeContentTypeHandler", () => {
@@ -333,6 +336,63 @@ describe("makeContentTypeHandler", () => {
           path: "/content_groups/codename:group2/codename",
           value: "group2_new_codename",
           oldValue: "group2",
+        },
+      ]);
+    });
+
+    it("deletes existing snippet and adds the new one when codenames don't match", () => {
+      const source: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "snippet",
+            codename: "element_1_new",
+          } as SyncTypeSnippetElement,
+          {
+            type: "text",
+            codename: "element_2",
+            name: "text",
+          },
+        ],
+      };
+      const target: ContentTypeSyncModel = {
+        name: "test type",
+        codename: "type",
+        elements: [
+          {
+            type: "snippet",
+            codename: "element_1",
+          } as SyncTypeSnippetElement,
+          {
+            type: "text",
+            codename: "element_2",
+            name: "text",
+          },
+        ],
+      };
+
+      const result = makeContentTypeHandler({
+        targetItemsByCodenames: new Map(),
+        targetAssetsByCodenames: new Map(),
+      })(source, target);
+
+      expect(result).toStrictEqual([
+        {
+          op: "addInto",
+          path: "/elements",
+          value: {
+            type: "snippet",
+            codename: "element_1_new",
+          },
+        },
+        {
+          op: "remove",
+          path: "/elements/codename:element_1",
+          oldValue: {
+            type: "snippet",
+            codename: "element_1",
+          },
         },
       ]);
     });

@@ -36,7 +36,9 @@ export const makeCodenameObjectHandler =
 
     if (
       sourceValue.codename !== targetValue.codename &&
-      sourceValue.name === targetValue.name
+      sourceValue.name === targetValue.name &&
+      !!sourceValue.name &&
+      !!targetValue.name
     ) {
       customOps.push({
         op: "replace",
@@ -239,7 +241,8 @@ export const makeCodenameBaseArrayHandler =
     const addAndUpdateOps = sourceValue.flatMap((source) => {
       const targetEntity = targetValue.find(
         (target) =>
-          target.codename === source.codename || target.name === source.name,
+          target.codename === source.codename ||
+          (target.name === source.name && !!target.name && !!source.name),
       );
 
       if (!targetEntity) {
@@ -293,7 +296,7 @@ export const makeCodenameBaseArrayHandler =
           !sourceValue.find(
             (source) =>
               target.codename === source.codename ||
-              target.name === source.name,
+              (target.name === source.name && !!target.name && !!source.name),
           ),
       )
       .map((target) => ({
@@ -427,7 +430,8 @@ export const makeCodenameOrderingHandler =
     const targetWithoutRemoved = targetValue.filter((target) =>
       sourceValue.some(
         (source) =>
-          source.name === target.name || source.codename === target.codename,
+          source.codename === target.codename ||
+          (source.name === target.name && !!source.name && !!target.name),
       ),
     );
 
@@ -445,7 +449,9 @@ export const makeCodenameOrderingHandler =
     }, new Map<string, Array<Entity>>());
 
     const isSorted = zip(sortedSourceElements, sortedTargetElements).every(
-      ([e1, e2]) => e1.name === e2.name || e1.codename === e2.codename,
+      ([e1, e2]) =>
+        e1.codename === e2.codename ||
+        (e1.name === e2.name && !!e1.name && !!e2.name),
     );
 
     const moveOps = isSorted
