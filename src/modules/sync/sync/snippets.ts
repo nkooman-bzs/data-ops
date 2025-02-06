@@ -136,18 +136,18 @@ export const updateSnippets = async (
   );
 };
 
-export const deleteContentTypeSnippets = async (
-  client: ManagementClient,
-  snippetOps: DiffModel["contentTypeSnippets"],
-  logOptions: LogOptions,
-) => {
-  if (snippetOps.deleted.size) {
-    logInfo(logOptions, "standard", "Deleting content type snippets");
-    await serially(Array.from(snippetOps.deleted).map(c => () => deleteSnippet(client, c)));
-  } else {
-    logInfo(logOptions, "standard", "No content type snippets to delete");
-  }
-};
+// export const deleteContentTypeSnippets = async (
+//   client: ManagementClient,
+//   snippetOps: DiffModel["contentTypeSnippets"],
+//   logOptions: LogOptions,
+// ) => {
+//   if (snippetOps.deleted.size) {
+//     logInfo(logOptions, "standard", "Deleting content type snippets");
+//     await serially(Array.from(snippetOps.deleted).map(c => () => deleteSnippet(client, c)));
+//   } else {
+//     logInfo(logOptions, "standard", "No content type snippets to delete");
+//   }
+// };
 
 const addSnippet = (client: ManagementClient, snippet: ContentTypeSnippetModels.IAddContentTypeSnippetData) =>
   client
@@ -166,14 +166,14 @@ const updateSnippet = (
     .withData(snippetData)
     .toPromise();
 
-const deleteSnippet = (
-  client: ManagementClient,
-  codename: string,
-) =>
-  client
-    .deleteContentTypeSnippet()
-    .byTypeCodename(codename)
-    .toPromise();
+// const deleteSnippet = (
+//   client: ManagementClient,
+//   codename: string,
+// ) =>
+//   client
+//     .deleteContentTypeSnippet()
+//     .byTypeCodename(codename)
+//     .toPromise();
 
 const isElement = (entity: unknown): entity is ContentTypeElements.Element =>
   typeof entity === "object" && entity !== null && "type" in entity && typeof entity.type === "string"

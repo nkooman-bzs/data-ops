@@ -34,12 +34,12 @@ export const syncTaxonomies = async (
     logInfo(logOptions, "standard", "No taxonomies to update");
   }
 
-  if (taxonomies.deleted.size) {
-    logInfo(logOptions, "standard", "Deleting taxonomies");
-    await serially(Array.from(taxonomies.deleted).map(c => () => deleteTaxonomyGroup(client, c)));
-  } else {
-    logInfo(logOptions, "standard", "No taxonomies to delete");
-  }
+  // if (taxonomies.deleted.size) {
+  //   logInfo(logOptions, "standard", "Deleting taxonomies");
+  //   await serially(Array.from(taxonomies.deleted).map(c => () => deleteTaxonomyGroup(client, c)));
+  // } else {
+  //   logInfo(logOptions, "standard", "No taxonomies to delete");
+  // }
 };
 
 const addTaxonomyGroup = (client: ManagementClient, taxonomy: TaxonomyModels.IAddTaxonomyRequestModel) =>
@@ -59,14 +59,14 @@ const updateTaxonomyGroup = (
     .withData(taxonomyData)
     .toPromise();
 
-const deleteTaxonomyGroup = (
-  client: ManagementClient,
-  codename: string,
-) =>
-  client
-    .deleteTaxonomy()
-    .byTaxonomyCodename(codename)
-    .toPromise();
+// const deleteTaxonomyGroup = (
+//   client: ManagementClient,
+//   codename: string,
+// ) =>
+//   client
+//     .deleteTaxonomy()
+//     .byTaxonomyCodename(codename)
+//     .toPromise();
 
 const transformTaxonomyOperations = (
   operation: PatchOperation,
