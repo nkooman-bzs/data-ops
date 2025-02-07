@@ -28,12 +28,14 @@ export const syncSpaces = async (
   if ([...model.updated].flatMap(([, arr]) => arr).length) {
     logInfo(logOptions, "standard", "Updating spaces");
 
-    await serially([...model.updated].map(([spaceCodename, operations]) => () =>
-      client
-        .modifySpace()
-        .bySpaceCodename(spaceCodename)
-        .withData(operations.map(convertOperation))
-        .toPromise()
+    await serially([...model.updated]
+      .filter(([,ops]) => ops.length)
+      .map(([spaceCodename, operations]) => () =>
+        client
+          .modifySpace()
+          .bySpaceCodename(spaceCodename)
+          .withData(operations.map(convertOperation))
+          .toPromise()
     ));
   } else {
     logInfo(logOptions, "standard", "No spaces to update");
