@@ -66,6 +66,7 @@ export type SyncRunParams = Readonly<
  * @param {string} params.targetEnvironmentId - The ID of the target environment where the content model will be synchronized.
  * @param {string} params.targetApiKey - The API key for accessing the target environment.
  * @param {SyncEntities} params.entities - The entities that need to be synchronized. It includes content types, snippets, taxonomies, etc. If entity is not specified, no items from the given entity will be synced. To sync all item form an entity use () => true.
+ * @param {Logger} [params.logger] - Optional. The logger to be used for logging.
  * @param {string} [params.folderName] - Optional. The name of the folder containing the source content model to be synchronized.
  * @param {string} [params.sourceEnvironmentId] - Optional. The ID of the source environment from which the content model will be fetched.
  * @param {string} [params.sourceApiKey] - Optional. The API key for accessing the source environment.

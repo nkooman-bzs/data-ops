@@ -180,7 +180,7 @@ export const transformRichTextElement = (
     handleContentType(
       type,
       contentTypes,
-      `could not find type with id ${type.id} to be used in allowed_content_types in element with codename ${element.codename}. Skipping it`,
+      `Could not find type with id ${type.id} to be used in allowed_content_types in element with codename ${element.codename}. Skipping it`,
       logOptions,
     )
   ).filter(notNullOrUndefined);
@@ -188,7 +188,7 @@ export const transformRichTextElement = (
     handleContentType(
       type,
       contentTypes,
-      `could not find type with id ${type.id} to be used in allowed_item_link_types in element with codename ${element.codename}. Skipping it`,
+      `Could not find type with id ${type.id} to be used in allowed_item_link_types in element with codename ${element.codename}. Skipping it`,
       logOptions,
     )
   ).filter(notNullOrUndefined);
@@ -256,7 +256,7 @@ export const transformLinkedItemsElement = (
     handleContentType(
       type,
       contentTypes,
-      `could not find type with id ${type.id} to be used in allowed_content_types in element with codename ${element.codename}. Skipping it`,
+      `Could not find type with id ${type.id} to be used in allowed_content_types in element with codename ${element.codename}. Skipping it`,
       logOptions,
     )
   ).filter(notNullOrUndefined);

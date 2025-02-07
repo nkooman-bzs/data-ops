@@ -1,3 +1,4 @@
+import { Logger } from "@kontent-ai/migration-toolkit";
 import chalk from "chalk";
 import { Argv } from "yargs";
 
@@ -17,28 +18,28 @@ export const allLogLevels = Object.keys(logLevelsPriority);
 type LoggableLogLevel = Exclude<LogLevel, "none">;
 
 export const logError = (options: LogOptions, ...messages: ReadonlyArray<string>) =>
-  logInternal(options, "standard", console.error, ...messages.map(m => `${chalk.red("Error:")} ${m}\n`));
+  logInternal(options, "standard", 'error', ...messages.map(m => `${chalk.red("Error:")} ${m}\n`));
 
 export const logWarning = (
   options: LogOptions,
   logAtLevel: LoggableLogLevel,
   ...messages: ReadonlyArray<string>
-) => logInternal(options, logAtLevel, console.warn, ...messages);
+) => logInternal(options, logAtLevel, 'warning', ...messages);
 
 export const logInfo = (
   options: LogOptions,
   logAtLevel: LoggableLogLevel,
   ...messages: ReadonlyArray<string>
-) => logInternal(options, logAtLevel, console.log, ...messages);
+) => logInternal(options, logAtLevel, 'info', ...messages);
 
 const logInternal = (
   options: LogOptions,
   thisMessageLogLevel: LoggableLogLevel,
-  logFnc: (...msgs: ReadonlyArray<string>) => void,
+  logLevel: 'error' | 'warning' | 'info',
   ...messages: ReadonlyArray<string>
 ) => {
   if (logLevelsPriority[optionsToLogLevel(options)] >= logLevelsPriority[thisMessageLogLevel]) {
-    logFnc(...messages);
+    options.logger?.log({ message: messages.join(" "), type: logLevel });
   }
 };
 
@@ -62,11 +63,12 @@ const isLogLevel = (input: string): input is LogLevel => allLogLevels.includes(i
 export type LogOptions = Readonly<{
   logLevel?: string;
   verbose?: boolean;
+  logger?: Logger;
 }>;
 
 const defaultLogLevel: LogLevel = "standard";
 
-export const addLogLevelOptions = <PreviousOptions>(inputYargs: Argv<PreviousOptions>): Argv<LogOptions> =>
+export const addLogLevelOptions = <PreviousOptions>(inputYargs: Argv<PreviousOptions>): Argv<Omit<LogOptions, 'logger'>> =>
   inputYargs
     .option("logLevel", {
       type: "string",
