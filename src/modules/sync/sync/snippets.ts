@@ -9,6 +9,7 @@ import { PatchOperation } from "../types/patchOperation.js";
 import {
   createUpdateReferenceOps,
   createUpdateReferencesOps,
+  isCodenameOp,
   isOp,
   isReferencingElement,
   ReferencingElement,
@@ -114,7 +115,7 @@ export const updateSnippets = async (
   logOptions: LogOptions,
 ) => {
   const otherSnippetOps = [...updateSnippetsOps.entries()]
-    .map(([c, ops]) => [c, ops.filter(o => !isOp("addInto")(o))] as const);
+    .map(([c, ops]) => [c, ops.filter(o => !isOp("addInto")(o)).filter(o => !isCodenameOp(o))] as const);
 
   if (otherSnippetOps.flatMap(([, ops]) => ops).length === 0) {
     logInfo(logOptions, "standard", "No content type snippets to update");
@@ -135,6 +136,34 @@ export const updateSnippets = async (
     ),
   );
 };
+
+export const updateSnippetElementCodenames = async (
+  client: ManagementClient,
+  updateSnippetOps: DiffModel["contentTypeSnippets"]["updated"],
+  logOptions: LogOptions,
+) => {
+  const codenameOps = [...updateSnippetOps.entries()]
+    .map(([c, ops]) => [c, ops.filter(o => isCodenameOp(o))] as const);
+
+  if (codenameOps.flatMap(([, ops]) => ops).length === 0) {
+    logInfo(logOptions, "standard", "No content type snippet's codenames to update");
+    return;
+  }
+
+  logInfo(logOptions, "standard", "Updating content type snippet's codenames");
+  await serially(
+    codenameOps.map(
+      ([codename, operations]) => () =>
+        operations.length
+          ? updateSnippet(
+            client,
+            codename,
+            operations.map(op => "oldValue" in op ? omit(op, ["oldValue"]) : op),
+          )
+          : Promise.resolve(),
+    ),
+  );
+}
 
 // export const deleteContentTypeSnippets = async (
 //   client: ManagementClient,

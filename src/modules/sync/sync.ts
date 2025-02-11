@@ -9,6 +9,7 @@ import {
   addElementsIntoSnippetsWithoutReferences,
   addSnippetsReferences,
   addSnippetsWithoutReferences,
+  updateSnippetElementCodenames,
   updateSnippets,
 } from "./sync/snippets.js";
 import { syncSpaces } from "./sync/spaces.js";
@@ -66,6 +67,7 @@ export const sync = async (
 
   if (entities.has("contentTypeSnippets")) {
     await addSnippetsReferences(client, updateSnippetAddIntoOps, diff.contentTypeSnippets.added, logOptions);
+    await updateSnippetElementCodenames(client, diff.contentTypeSnippets.updated, logOptions);
   }
 
   if (entities.has("contentTypes")) {

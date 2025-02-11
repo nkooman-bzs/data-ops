@@ -25,6 +25,9 @@ export const isOp =
   <OpName extends PatchOperation["op"]>(opName: OpName) =>
   (op: PatchOperation): op is Extract<PatchOperation, { op: OpName }> => op.op === opName;
 
+  export const isCodenameOp =
+  <OpName extends PatchOperation["op"]>(op: PatchOperation): op is Extract<PatchOperation, { op: OpName; path: string }> => isOp('replace')(op) && op.path.endsWith('/codename');
+
 export const removeReferencesFromAddOp = (
   entity:
     | RequiredCodename<ContentTypeModels.IAddContentTypeData>
