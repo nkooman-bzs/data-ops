@@ -159,7 +159,7 @@ const resolveParams = (params: MigrateContentRunCliParams): MigrateContentRunPar
   const omitted = omit(params, ["sourceEnvironmentId", "sourceApiKey", "items", "filter", "last", "byTypesCodenames"]);
 
   if (params.filename) {
-    return { ...omitted, filename: params.filename, mapMigrationData: data => data };
+    return { ...omitted, filename: params.filename, mapMigrationData: data => data, onAction: () => undefined, onAsset: () => undefined, onElement: () => undefined, onItem: () => undefined };
   }
 
   const filterParams = match(params)
@@ -199,6 +199,10 @@ const resolveParams = (params: MigrateContentRunCliParams): MigrateContentRunPar
       sourceApiKey: params.sourceApiKey,
       language: params.language,
       mapMigrationData: data => data,
+      onAction: () => undefined,
+      onAsset: () => undefined,
+      onElement: () => undefined,
+      onItem: () => undefined,
     };
   }
 

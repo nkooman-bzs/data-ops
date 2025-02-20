@@ -41,6 +41,10 @@ export const migrateContentSnapshotInternal = async (params: MigrateContentSnaps
     exportItems: itemsCodenames.map(i => ({ itemCodename: i, languageCodename: params.language })),
     logger: getDefaultLogger(),
     baseUrl: apply(createManagementApiUrl, params.kontentUrl),
+    onAction: () => undefined,
+    onItem: () => undefined,
+    onElement: () => undefined,
+    onAsset: () => undefined,
   });
 
   await storeAsync({

@@ -1,94 +1,102 @@
-import { extractAsync, importAsync, Logger, migrateAsync, MigrationData } from "@kontent-ai/migration-toolkit";
+import { AssetModels } from '@kontent-ai/management-sdk';
+import {
+  ExportItem,
+  extractAsync,
+  FlattenedContentTypeElement,
+  importAsync,
+  Logger,
+  migrateAsync,
+  MigrationAsset,
+  MigrationData,
+  MigrationElement,
+  MigrationItem
+} from '@kontent-ai/migration-toolkit';
 
-import { logInfo, LogOptions } from "../../log.js";
-import { createClientDelivery, createManagementApiUrl } from "../../utils/client.js";
-import { apply } from "../../utils/function.js";
-import { getItemsCodenames } from "./migrateContent.js";
+import { logInfo, LogOptions } from '../../log.js';
+import { createClientDelivery, createManagementApiUrl } from '../../utils/client.js';
+import { apply } from '../../utils/function.js';
+import { getItemsCodenames } from './migrateContent.js';
 
 export type MigrateContentRunParams = Readonly<
-  & {
+  {
     targetEnvironmentId: string;
     targetApiKey: string;
     logger?: Logger;
     skipFailedItems?: boolean;
     kontentUrl?: string;
     mapMigrationData: (data: MigrationData) => MigrationData;
-  }
-  & (
-    | {
-      sourceEnvironmentId: string;
-      sourceApiKey: string;
-    }
-      & MigrateContentFilterParams
+    readonly onAction: (action: string | null) => void;
+    readonly onItem: (item: ExportItem | MigrationItem | null) => void;
+    readonly onElement: (element: FlattenedContentTypeElement | MigrationElement | null) => void;
+    readonly onAsset: (asset: AssetModels.Asset | MigrationAsset | null) => void;
+  } & (
+    | ({
+        sourceEnvironmentId: string;
+        sourceApiKey: string;
+      } & MigrateContentFilterParams)
     | { filename: string }
-  )
-  & LogOptions
+  ) &
+    LogOptions
 >;
 
 export type MigrateContentFilterParams = Readonly<
-  & (
+  (
     | { items: ReadonlyArray<string> }
-    | (
-      & (
+    | ((
         | { items: ReadonlyArray<string>; depth: number; limit?: number }
-        | (
-          | { last: number }
-          | { byTypesCodenames: ReadonlyArray<string> }
-          | { filter: string }
-        )
-          & { depth?: number; limit?: number }
-      )
-      & { sourceDeliveryPreviewKey: string }
-    )
-  )
-  & { language: string }
+        | (({ last: number } | { byTypesCodenames: ReadonlyArray<string> } | { filter: string }) & { depth?: number; limit?: number })
+      ) & { sourceDeliveryPreviewKey: string })
+  ) & { language: string }
 >;
 
 export const migrateContentRun = async (params: MigrateContentRunParams) => {
-  return await migrateContentRunInternal(params, "migrate-content-run-API");
+  return await migrateContentRunInternal(params, 'migrate-content-run-API');
 };
 
 export const migrateContentRunInternal = async (
   params: MigrateContentRunParams,
   commandName: string,
-  withItemCodenames: (itemsCodenames: ReadonlyArray<string>) => Promise<void> = () => Promise.resolve(),
+  withItemCodenames: (itemsCodenames: ReadonlyArray<string>) => Promise<void> = () => Promise.resolve()
 ) => {
-  if ("filename" in params) {
+  if ('filename' in params) {
     const data = await extractAsync({ filename: params.filename });
 
     await importAsync({
       data: data,
       environmentId: params.targetEnvironmentId,
       apiKey: params.targetApiKey,
+      onAction: params.onAction,
+      onItem: params.onItem,
+      onAsset: params.onAsset,
+      onElement: params.onElement,
     });
 
     return;
   }
 
-  const itemsCodenames = "items" in params && !("depth" in params)
-    ? params.items
-    : await getItemsCodenames(
-      createClientDelivery({
-        environmentId: params.sourceEnvironmentId,
-        previewApiKey: params.sourceDeliveryPreviewKey,
-        usePreviewMode: true,
-        commandName,
-        baseUrl: params.kontentUrl,
-      }),
-      params,
-    );
+  const itemsCodenames =
+    'items' in params && !('depth' in params)
+      ? params.items
+      : await getItemsCodenames(
+          createClientDelivery({
+            environmentId: params.sourceEnvironmentId,
+            previewApiKey: params.sourceDeliveryPreviewKey,
+            usePreviewMode: true,
+            commandName,
+            baseUrl: params.kontentUrl
+          }),
+          params
+        );
 
   if (!itemsCodenames.length) {
-    logInfo(params, "standard", `No items to migrate`);
+    logInfo(params, 'standard', `No items to migrate`);
     return;
   }
 
   logInfo(
     params,
-    "standard",
-    `Migrating ${itemsCodenames.length} items from ${params.sourceEnvironmentId} to ${params.targetEnvironmentId} ${
-      itemsCodenames.length < 100 ? `with codenames:\n${itemsCodenames.join("\n")}` : ""
-    }`,
+    'standard',
+    `Migrating ${itemsCodenames.length} items from ${params.sourceEnvironmentId} to ${params.targetEnvironmentId} ${itemsCodenames.length < 100 ? `with codenames:\n${itemsCodenames.join('\n')}` : ''}`
   );
 
   await withItemCodenames(itemsCodenames);
@@ -97,19 +105,23 @@ export const migrateContentRunInternal = async (
     targetEnvironment: {
       apiKey: params.targetApiKey,
       environmentId: params.targetEnvironmentId,
-      baseUrl: apply(createManagementApiUrl, params.kontentUrl),
+      baseUrl: apply(createManagementApiUrl, params.kontentUrl)
     },
     sourceEnvironment: {
       environmentId: params.sourceEnvironmentId,
       apiKey: params.sourceApiKey,
-      items: itemsCodenames.map(i => ({ itemCodename: i, languageCodename: params.language })),
-      baseUrl: apply(createManagementApiUrl, params.kontentUrl),
+      items: itemsCodenames.map((i) => ({ itemCodename: i, languageCodename: params.language })),
+      baseUrl: apply(createManagementApiUrl, params.kontentUrl)
     },
     mapMigrationData: params.mapMigrationData,
     logger: params.logger,
+    onAction: params.onAction,
+    onAsset: params.onAsset,
+    onElement: params.onElement,
+    onItem: params.onItem,
   });
 
-  logInfo(params, "standard", `All items successfully migrated`);
+  logInfo(params, 'standard', `All items successfully migrated`);
 
   return result;
 };
