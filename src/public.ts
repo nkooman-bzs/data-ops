@@ -28,6 +28,7 @@ export {
   migrateContentRun,
   MigrateContentRunParams as SyncContentRunParams,
 } from "./modules/migrateContent/migrateContentRun.js";
+export { getItemsCodenames } from "./modules/migrateContent/migrateContent.js";
 export {
   migrateContentSnapshot,
   MigrateContentSnapshotParams,
