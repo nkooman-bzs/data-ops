@@ -16,7 +16,9 @@ export const syncLanguages = async (
 ) => {
   if (operations.deleted.size) {
     logInfo(logOptions, "standard", "Deactivating languages");
-
+    for (const codename of [...operations.deleted]) {
+      logInfo(logOptions, "standard", `  ${codename}`);
+    }
     await serially(
       [...operations.deleted].map(codename => () => deleteLanguage(client, codename)),
     );
