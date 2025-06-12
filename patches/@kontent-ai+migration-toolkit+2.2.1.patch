@@ -2672,7 +2672,7 @@ index f702123..bec1fe5 100644
  
      const getItemStatesAsync = async (itemIds: ReadonlySet<string>): Promise<readonly ItemStateInSourceEnvironmentById[]> => {
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/export/export-manager.ts b/node_modules/@kontent-ai/migration-toolkit/lib/export/export-manager.ts
-index 2a5df23..4798c5e 100644
+index 2a5df23..822a34d 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/export/export-manager.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/export/export-manager.ts
 @@ -1,4 +1,4 @@
@@ -2681,7 +2681,7 @@ index 2a5df23..4798c5e 100644
  import chalk from 'chalk';
  import {
      extractErrorData,
-@@ -30,43 +30,56 @@ export function exportManager(config: ExportConfig) {
+@@ -30,43 +30,60 @@ export function exportManager(config: ExportConfig) {
      const managementClient = getMigrationManagementClient(config);
  
      const getMigrationItems = (context: ExportContext): readonly MigrationItem[] => {
@@ -2713,6 +2713,8 @@ index 2a5df23..4798c5e 100644
 -                    workflow_step: {
 -                        codename: version.workflowStepCodename
 +    const mapToMigrationItem = (context: ExportContext, exportItem: ExportItem): Readonly<MigrationItem | null> => {
++        config.onAction(`processing-item`);
++        config.onItem(exportItem);
 +        try {
 +            const migrationItem: MigrationItem = {
 +                system: {
@@ -2755,6 +2757,8 @@ index 2a5df23..4798c5e 100644
 +            });
 +
 +            return null;
++        } finally {
++            config.onItem(null)
 +        }
      };
  
@@ -2767,7 +2771,7 @@ index 2a5df23..4798c5e 100644
      ): MigrationComponent => {
          const componentType = context.environmentData.contentTypes.find((m) => m.contentTypeId === component.type.id);
  
-@@ -81,7 +94,7 @@ export function exportManager(config: ExportConfig) {
+@@ -81,7 +98,7 @@ export function exportManager(config: ExportConfig) {
                      codename: componentType.contentTypeCodename
                  }
              },
@@ -2776,7 +2780,7 @@ index 2a5df23..4798c5e 100644
          };
  
          return migrationItem;
-@@ -90,7 +103,9 @@ export function exportManager(config: ExportConfig) {
+@@ -90,7 +107,9 @@ export function exportManager(config: ExportConfig) {
      const getMigrationElements = (
          context: ExportContext,
          contentType: FlattenedContentType,
@@ -2787,7 +2791,16 @@ index 2a5df23..4798c5e 100644
      ): MigrationElements => {
          return contentType.elements
              .toSorted((a, b) => {
-@@ -115,7 +130,9 @@ export function exportManager(config: ExportConfig) {
+@@ -103,6 +122,8 @@ export function exportManager(config: ExportConfig) {
+                 return 0;
+             })
+             .reduce<Writeable<MigrationElements>>((model, typeElement) => {
++                config.onElement(typeElement);
++
+                 const itemElement = findRequired(
+                     elements,
+                     (m) => m.element.id === typeElement.id,
+@@ -115,26 +136,35 @@ export function exportManager(config: ExportConfig) {
                          context: context,
                          contentType: contentType,
                          exportElement: itemElement,
@@ -2798,7 +2811,10 @@ index 2a5df23..4798c5e 100644
                      })
                  };
  
-@@ -124,17 +141,22 @@ export function exportManager(config: ExportConfig) {
++                config.onElement(null);
++
+                 return model;
+             }, {});
      };
  
      const getMigrationElementToStore = (data: {
@@ -2826,7 +2842,7 @@ index 2a5df23..4798c5e 100644
                      value: data.exportElement.value,
                      urlSlugMode: data.exportElement.mode,
                      displayTimezone: data.exportElement.display_timezone
-@@ -175,60 +197,62 @@ export function exportManager(config: ExportConfig) {
+@@ -175,60 +205,65 @@ export function exportManager(config: ExportConfig) {
              message: `Preparing to download '${chalk.yellow(assets.length.toString())}' assets`
          });
  
@@ -2861,6 +2877,13 @@ index 2a5df23..4798c5e 100644
 +                },
 +                items: assets,
 +                processAsync: async (asset, logSpinner) => {
++                    config.onAction(`processing-asset`);
++                    config.onAsset(asset);
+ 
+-                logSpinner({
+-                    type: 'download',
+-                    message: `${asset.url}`
+-                });
 +                    const assetCollection: Readonly<CollectionModels.Collection> | undefined = context.environmentData.collections.find(
 +                        (m) => m.id === asset.collection?.reference?.id
 +                    );
@@ -2868,31 +2891,11 @@ index 2a5df23..4798c5e 100644
 +                        (m) => m.id === asset.folder?.id
 +                    );
  
--                logSpinner({
--                    type: 'download',
--                    message: `${asset.url}`
--                });
+-                const binaryData = await getBinaryDataFromUrlAsync(asset.url);
 +                    logSpinner({
 +                        type: 'download',
 +                        message: `${asset.url}`
 +                    });
- 
--                const binaryData = await getBinaryDataFromUrlAsync(asset.url);
-+                    const migrationAsset: MigrationAsset = {
-+                        filename: asset.fileName,
-+                        title: asset.title ?? '',
-+                        codename: asset.codename,
-+                        binary_data: (await getBinaryDataFromUrlAsync(asset.url)).data,
-+                        collection: assetCollection ? { codename: assetCollection.codename } : undefined,
-+                        folder: assetFolder ? { codename: assetFolder.codename } : undefined,
-+                        descriptions: asset.descriptions.map((description) => {
-+                            const language = findRequired(
-+                                context.environmentData.languages,
-+                                (language) => language.id === description.language.id,
-+                                `Could not find language with id '${chalk.red(description.language.id)}' requested by asset '${chalk.red(
-+                                    asset.codename
-+                                )}'`
-+                            );
  
 -                const migrationAsset: MigrationAsset = {
 -                    filename: asset.fileName,
@@ -2909,14 +2912,21 @@ index 2a5df23..4798c5e 100644
 -                                asset.codename
 -                            )}'`
 -                        );
-+                            return {
-+                                description: description.description ?? undefined,
-+                                language: {
-+                                    codename: language.codename
-+                                }
-+                            };
-+                        })
-+                    };
++                    const migrationAsset: MigrationAsset = {
++                        filename: asset.fileName,
++                        title: asset.title ?? '',
++                        codename: asset.codename,
++                        binary_data: (await getBinaryDataFromUrlAsync(asset.url)).data,
++                        collection: assetCollection ? { codename: assetCollection.codename } : undefined,
++                        folder: assetFolder ? { codename: assetFolder.codename } : undefined,
++                        descriptions: asset.descriptions.map((description) => {
++                            const language = findRequired(
++                                context.environmentData.languages,
++                                (language) => language.id === description.language.id,
++                                `Could not find language with id '${chalk.red(description.language.id)}' requested by asset '${chalk.red(
++                                    asset.codename
++                                )}'`
++                            );
  
 -                        return {
 -                            description: description.description ?? undefined,
@@ -2926,7 +2936,15 @@ index 2a5df23..4798c5e 100644
 -                        };
 -                    })
 -                };
--
++                            return {
++                                description: description.description ?? undefined,
++                                language: {
++                                    codename: language.codename
++                                }
++                            };
++                        })
++                    };
+ 
 -                return migrationAsset;
 -            }
 -        });
@@ -2939,11 +2957,27 @@ index 2a5df23..4798c5e 100644
      };
  
      return {
+@@ -251,6 +286,8 @@ export function exportManager(config: ExportConfig) {
+                 message: `Finished export`
+             });
+ 
++            config.onAction(null);
++
+             return migrationData;
+         }
+     };
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/export/export.models.ts b/node_modules/@kontent-ai/migration-toolkit/lib/export/export.models.ts
-index eb7f33d..651b269 100644
+index eb7f33d..76b5c84 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/export/export.models.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/export/export.models.ts
-@@ -44,6 +44,9 @@ export type ExportTransformFunc = (data: {
+@@ -1,5 +1,6 @@
+ import {
+     AssetFolderModels,
++    AssetModels,
+     CollectionModels,
+     ContentItemModels,
+     LanguageModels,
+@@ -44,6 +45,9 @@ export type ExportTransformFunc = (data: {
      readonly typeElement: FlattenedContentTypeElement;
      readonly exportElement: ExportElement;
      readonly context: ExportContext;
@@ -2953,6 +2987,17 @@ index eb7f33d..651b269 100644
  }) => MigrationElementTransformData;
  
  export interface ExportContext {
+@@ -63,6 +67,10 @@ export interface SourceExportItem {
+ export interface ExportConfig extends ManagementClientConfig {
+     readonly exportItems: readonly SourceExportItem[];
+     readonly logger?: Logger;
++    readonly onAction: (action: string | null) => void;
++    readonly onItem: (item: ExportItem | null) => void;
++    readonly onElement: (element: FlattenedContentTypeElement | null) => void;
++    readonly onAsset: (asset: AssetModels.Asset | null) => void;
+ }
+ 
+ export interface DefaultExportContextConfig {
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/file/file-manager.ts b/node_modules/@kontent-ai/migration-toolkit/lib/file/file-manager.ts
 index 9130087..0dc66b0 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/file/file-manager.ts
@@ -3088,7 +3133,7 @@ index b91bf4a..dc98c01 100644
  
      const getVariantState = (languageVariant: Readonly<LanguageVariantModels.ContentItemLanguageVariant>): LanguageVariantStateData => {
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/import/import-manager.ts b/node_modules/@kontent-ai/migration-toolkit/lib/import/import-manager.ts
-index e532332..b5d698b 100644
+index e532332..faa73b8 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/import/import-manager.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/import/import-manager.ts
 @@ -1,15 +1,45 @@
@@ -3143,8 +3188,13 @@ index e532332..b5d698b 100644
  
      const importAssetsAsync = async (importContext: ImportContext): Promise<Pick<ImportResult, 'editedAssets' | 'uploadedAssets'>> => {
          if (!importContext.categorizedImportData.assets.length) {
-@@ -29,7 +59,8 @@ export function importManager(config: ImportConfig) {
-             logger: logger
+@@ -26,10 +56,12 @@ export function importManager(config: ImportConfig) {
+         return await assetsImporter({
+             client: targetEnvironmentClient,
+             importContext: importContext,
+-            logger: logger
++            logger: logger,
++            onAsset: config.onAsset
          }).importAsync();
      };
 -    const importContentItemsAsync = async (importContext: ImportContext): Promise<readonly Readonly<ContentItemModels.ContentItem>[]> => {
@@ -3153,7 +3203,15 @@ index e532332..b5d698b 100644
          if (!importContext.categorizedImportData.contentItems.length) {
              logger.log({
                  type: 'info',
-@@ -46,8 +77,8 @@ export function importManager(config: ImportConfig) {
+@@ -40,14 +72,15 @@ export function importManager(config: ImportConfig) {
+         return await contentItemsImporter({
+             client: targetEnvironmentClient,
+             importContext: importContext,
+-            logger: logger
++            logger: logger,
++            onItem: config.onItem
+         }).importAsync();
+     };
  
      const importLanguageVariantsAsync = async (
          importContext: ImportContext,
@@ -3164,7 +3222,15 @@ index e532332..b5d698b 100644
          if (!importContext.categorizedImportData.contentItems.length) {
              logger.log({
                  type: 'info',
-@@ -63,6 +94,116 @@ export function importManager(config: ImportConfig) {
+@@ -59,10 +92,123 @@ export function importManager(config: ImportConfig) {
+             client: targetEnvironmentClient,
+             importContext: importContext,
+             logger: logger,
+-            preparedContentItems: contentItems
++            preparedContentItems: contentItems,
++            onItem: config.onItem,
++            onAction: config.onAction,
++            onElement: config.onElement
          }).importAsync();
      };
  
@@ -3281,9 +3347,24 @@ index e532332..b5d698b 100644
      return {
          async importAsync(): Promise<ImportResult> {
              const importContext = await (
-@@ -83,17 +224,40 @@ export function importManager(config: ImportConfig) {
+@@ -75,25 +221,55 @@ export function importManager(config: ImportConfig) {
+             ).getImportContextAsync();
+ 
+             // #1 Assets
++            config.onAction('import-assets');
+             const { editedAssets, uploadedAssets } = await importAssetsAsync(importContext);
++            config.onAsset(null)
+ 
+             // #2 Content items
++            config.onAction('import-content-items');
+             const contentItems = await importContentItemsAsync(importContext);
++            config.onItem(null)
+ 
              // #3 Language variants
++            config.onAction('import-language-variants');
              const languageVariants = await importLanguageVariantsAsync(importContext, contentItems);
++            config.onItem(null)
++            config.onElement(null)
  
 -            logger.log({
 -                type: 'completed',
@@ -3326,7 +3407,7 @@ index e532332..b5d698b 100644
      };
  }
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/import/import.models.ts b/node_modules/@kontent-ai/migration-toolkit/lib/import/import.models.ts
-index f4d7912..7119031 100644
+index f4d7912..f184250 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/import/import.models.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/import/import.models.ts
 @@ -14,6 +14,7 @@ import {
@@ -3337,12 +3418,16 @@ index f4d7912..7119031 100644
      ItemStateInTargetEnvironmentByCodename,
      LanguageVariantStateInTargetEnvironmentByCodename,
      Logger,
-@@ -75,12 +76,27 @@ export type ImportTransformFunc = (data: {
+@@ -75,12 +76,31 @@ export type ImportTransformFunc = (data: {
  export interface ImportConfig extends ManagementClientConfig {
      readonly data: MigrationData;
      readonly externalIdGenerator?: ExternalIdGenerator;
 +    readonly createReportFile?: boolean;
      readonly logger?: Logger;
++    readonly onAction: (action: string | null) => void;
++    readonly onItem: (item: MigrationItem | null) => void;
++    readonly onElement: (element: FlattenedContentTypeElement | string | null) => void;
++    readonly onAsset: (asset: AssetModels.Asset | MigrationAsset | null) => void;
  }
  
 +export interface AssetToEdit {
@@ -3370,10 +3455,10 @@ index f4d7912..7119031 100644
 +    readonly languageVariants: readonly ImportedLanguageVariant[];
  }
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/assets-importer.ts b/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/assets-importer.ts
-index b6c5ff7..3c8a49c 100644
+index b6c5ff7..48fa27b 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/assets-importer.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/assets-importer.ts
-@@ -13,13 +13,7 @@ import {
+@@ -13,18 +13,13 @@ import {
      runMapiRequestAsync
  } from '../../core/index.js';
  import { shouldReplaceBinaryFile, shouldUpdateAsset } from '../comparers/asset-comparer.js';
@@ -3388,7 +3473,13 @@ index b6c5ff7..3c8a49c 100644
  
  export function assetsImporter(data: {
      readonly logger: Logger;
-@@ -70,7 +64,7 @@ export function assetsImporter(data: {
+     readonly client: Readonly<ManagementClient>;
+     readonly importContext: ImportContext;
++    readonly onAsset: (asset: MigrationAsset) => void;
+ }) {
+     const getAssetsToUpload = (): readonly MigrationAsset[] => {
+         return data.importContext.categorizedImportData.assets
+@@ -70,7 +65,7 @@ export function assetsImporter(data: {
              .filter(isNotUndefined);
      };
  
@@ -3397,7 +3488,15 @@ index b6c5ff7..3c8a49c 100644
          data.logger.log({
              type: 'upsert',
              message: `Upserting '${chalk.yellow(assetsToEdit.length.toString())}' assets`
-@@ -135,7 +129,7 @@ export function assetsImporter(data: {
+@@ -88,6 +83,7 @@ export function assetsImporter(data: {
+                 };
+             },
+             processAsync: async (assetEditRequest, logSpinner) => {
++                data.onAsset(assetEditRequest.migrationAsset);
+                 let uploadedBinaryFile: Readonly<AssetModels.AssetFileReference> | undefined;
+ 
+                 if (assetEditRequest.replaceBinaryFile) {
+@@ -135,7 +131,7 @@ export function assetsImporter(data: {
                        codename: migrationCollection.codename
                    }
                }
@@ -3406,7 +3505,7 @@ index b6c5ff7..3c8a49c 100644
      };
  
      const mapAssetFolder = (
-@@ -170,13 +164,19 @@ export function assetsImporter(data: {
+@@ -170,13 +166,19 @@ export function assetsImporter(data: {
          return await runMapiRequestAsync({
              logger: data.logger,
              func: async () => {
@@ -3427,7 +3526,7 @@ index b6c5ff7..3c8a49c 100644
                              filename: migrationAsset.filename
                          })
                          .toPromise()
-@@ -189,7 +189,7 @@ export function assetsImporter(data: {
+@@ -189,7 +191,7 @@ export function assetsImporter(data: {
          });
      };
  
@@ -3436,11 +3535,19 @@ index b6c5ff7..3c8a49c 100644
          data.logger.log({
              type: 'upload',
              message: `Uploading '${chalk.yellow(assetsToUpload.length.toString())}' assets`
+@@ -207,6 +209,7 @@ export function assetsImporter(data: {
+                 };
+             },
+             processAsync: async (migrationAsset, logSpinner) => {
++                data.onAsset(migrationAsset);
+                 const uploadedBinaryFile = await uploadBinaryFileAsync(migrationAsset, logSpinner);
+ 
+                 return await runMapiRequestAsync({
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/content-items-importer.ts b/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/content-items-importer.ts
-index 345c57d..52c4467 100644
+index 345c57d..cc9f230 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/content-items-importer.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/content-items-importer.ts
-@@ -1,43 +1,28 @@
+@@ -1,43 +1,29 @@
  import { ContentItemModels, ManagementClient } from '@kontent-ai/management-sdk';
 -import {
 -    Logger,
@@ -3459,6 +3566,7 @@ index 345c57d..52c4467 100644
      readonly logger: Logger;
      readonly client: Readonly<ManagementClient>;
      readonly importContext: ImportContext;
++    readonly onItem: (item: MigrationItem) => void;
  }) {
 -    const shouldUpdateContentItem = (
 -        migrationContentItem: MigrationItem,
@@ -3492,7 +3600,7 @@ index 345c57d..52c4467 100644
  
          if (itemStateInTargetEnv.state === 'exists' && itemStateInTargetEnv.item) {
              return {
-@@ -53,14 +38,14 @@ export function contentItemsImporter(data: {
+@@ -53,14 +39,14 @@ export function contentItemsImporter(data: {
                      await data.client
                          .addContentItem()
                          .withData({
@@ -3511,7 +3619,7 @@ index 345c57d..52c4467 100644
                              }
                          })
                          .toPromise()
-@@ -68,7 +53,7 @@ export function contentItemsImporter(data: {
+@@ -68,7 +54,7 @@ export function contentItemsImporter(data: {
              action: 'create',
              type: 'contentItem',
              logSpinner: logSpinner,
@@ -3520,7 +3628,7 @@ index 345c57d..52c4467 100644
          });
  
          return {
-@@ -111,8 +96,19 @@ export function contentItemsImporter(data: {
+@@ -111,8 +97,19 @@ export function contentItemsImporter(data: {
          return preparedContentItemResult.contentItem;
      };
  
@@ -3542,7 +3650,7 @@ index 345c57d..52c4467 100644
  
          data.logger.log({
              type: 'info',
-@@ -127,7 +123,8 @@ export function contentItemsImporter(data: {
+@@ -127,10 +124,12 @@ export function contentItemsImporter(data: {
              itemInfo: (item) => {
                  return {
                      itemType: 'contentItem',
@@ -3552,8 +3660,12 @@ index 345c57d..52c4467 100644
                  };
              },
              processAsync: async (item, logSpinner) => {
++                data.onItem(item);
+                 return await importContentItemAsync(logSpinner, item);
+             }
+         });
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/language-variant-importer.ts b/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/language-variant-importer.ts
-index b74293a..e8fc1c1 100644
+index b74293a..126bd7d 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/language-variant-importer.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/import/importers/language-variant-importer.ts
 @@ -1,4 +1,4 @@
@@ -3562,7 +3674,7 @@ index b74293a..e8fc1c1 100644
  import chalk from 'chalk';
  import { match } from 'ts-pattern';
  import {
-@@ -16,13 +16,13 @@ import {
+@@ -16,15 +16,18 @@ import {
      workflowHelper
  } from '../../core/index.js';
  import { importTransforms } from '../../translation/index.js';
@@ -3577,8 +3689,13 @@ index b74293a..e8fc1c1 100644
 +    readonly preparedContentItems: readonly ImportedItem[];
      readonly importContext: ImportContext;
      readonly client: Readonly<ManagementClient>;
++    readonly onAction: (action: string | null) => void;
++    readonly onItem: (item: MigrationItem | null) => void;
++    readonly onElement: (element: string | null) => void;
  }) {
-@@ -37,33 +37,37 @@ export function languageVariantImporter(config: {
+     const workflowImporter = workflowImporterInit({
+         logger: config.logger,
+@@ -37,33 +40,39 @@ export function languageVariantImporter(config: {
          readonly logSpinner: LogSpinnerData;
          readonly migrationItem: MigrationItem;
          readonly migrationItemVersion: MigrationItemVersion;
@@ -3612,6 +3729,7 @@ index b74293a..e8fc1c1 100644
 +                    .withData(() => {
 +                        return {
 +                            elements: Object.entries(data.migrationItemVersion.elements).map(([codename, migrationElement]) => {
++                                config.onElement(codename);
 +                                return getElementContract(data.migrationItem, migrationElement, codename);
 +                            }),
 +                            workflow: {
@@ -3630,6 +3748,7 @@ index b74293a..e8fc1c1 100644
 +                    })
 +                    .toPromise();
 +                 
++                config.onElement(null)
 +                response.data.item.codename = data.preparedContentItem.inputItem.system.codename;
 +                response.data._raw.item.codename = data.preparedContentItem.inputItem.system.codename;
 +                response.data.language.codename = data.migrationItem.system.language.codename;
@@ -3638,7 +3757,7 @@ index b74293a..e8fc1c1 100644
              },
              action: 'upsert',
              type: 'languageVariant',
-@@ -110,7 +114,7 @@ export function languageVariantImporter(config: {
+@@ -110,7 +119,7 @@ export function languageVariantImporter(config: {
          readonly logSpinner: LogSpinnerData;
          readonly migrationItem: MigrationItem;
          readonly migrationItemVersion: MigrationItemVersion;
@@ -3647,7 +3766,7 @@ index b74293a..e8fc1c1 100644
          readonly createNewVersion?: boolean;
      }): Promise<Readonly<LanguageVariantModels.ContentItemLanguageVariant>> => {
          // validate workflow
-@@ -158,7 +162,7 @@ export function languageVariantImporter(config: {
+@@ -158,7 +167,7 @@ export function languageVariantImporter(config: {
      const importLanguageVariantAsync = async (
          logSpinner: LogSpinnerData,
          migrationItem: MigrationItem,
@@ -3656,7 +3775,68 @@ index b74293a..e8fc1c1 100644
      ): Promise<readonly LanguageVariantModels.ContentItemLanguageVariant[]> => {
          const { draftVersion, publishedVersion } = categorizeVersions(migrationItem);
  
-@@ -297,7 +301,7 @@ export function languageVariantImporter(config: {
+@@ -176,6 +185,7 @@ export function languageVariantImporter(config: {
+         });
+ 
+         // first import published version if it exists
++        config.onAction('import-published');
+         const publishedLanguageVariant: Readonly<LanguageVariantModels.ContentItemLanguageVariant> | undefined = publishedVersion
+             ? await importVersionAsync({
+                   logSpinner: logSpinner,
+@@ -184,18 +194,23 @@ export function languageVariantImporter(config: {
+                   migrationItemVersion: publishedVersion
+               })
+             : undefined;
++        config.onAction(null);
+ 
+         // if target env contains published version & imported version not, unpublish it from the target env
+         if (targetVariantState.publishedLanguageVariant && !publishedVersion) {
++            config.onAction('unpublish-language-variant');
+             await workflowImporter.unpublishLanguageVariantAsync({
+                 logSpinner,
+                 migrationItem
+             });
++            config.onAction('move-to-draft-step');
+             await workflowImporter.moveToDraftStepAsync({
+                 logSpinner,
+                 migrationItem
+             });
+         }
++
++        config.onAction('import-draft');
+         const draftLanguageVariant: Readonly<LanguageVariantModels.ContentItemLanguageVariant> | undefined = draftVersion
+             ? await importVersionAsync({
+                   logSpinner: logSpinner,
+@@ -205,6 +220,7 @@ export function languageVariantImporter(config: {
+                   createNewVersion: publishedLanguageVariant ? true : false
+               })
+             : undefined;
++        config.onAction(null);
+ 
+         return [publishedLanguageVariant, draftLanguageVariant].filter(isNotUndefined);
+     };
+@@ -252,6 +268,7 @@ export function languageVariantImporter(config: {
+         // there is likely a bug which causes /published endpoint to return invalid scheduled state
+         // use conditions below to determine scheduled state to use - this will be fixed in future
+         if (languageVariantToPrepare.workflowState?.scheduledState) {
++            config.onAction('cancel-scheduled-state');
+             await cancelScheduledStateAsync({
+                 logSpinner: data.logSpinner,
+                 migrationItem: data.migrationItem,
+@@ -267,10 +284,12 @@ export function languageVariantImporter(config: {
+         await match(languageVariantToPrepare.workflowState?.workflowState)
+             .with('published', async () => {
+                 // create new version if language variant is published
++                config.onAction('create-new-version');
+                 await workflowImporter.createNewVersionOfLanguageVariantAsync(changeWorkflowData);
+             })
+             .with('archived', async () => {
+                 // move to draft step if language variant is archived
++                config.onAction('move-to-draft-step');
+                 await workflowImporter.moveToDraftStepAsync(changeWorkflowData);
+             })
+             .otherwise(() => {});
+@@ -297,7 +316,7 @@ export function languageVariantImporter(config: {
          return importTransformResult;
      };
  
@@ -3665,7 +3845,7 @@ index b74293a..e8fc1c1 100644
          config.logger.log({
              type: 'info',
              message: `Importing '${chalk.yellow(
-@@ -305,32 +309,31 @@ export function languageVariantImporter(config: {
+@@ -305,32 +324,32 @@ export function languageVariantImporter(config: {
              )}' language variants`
          });
  
@@ -3709,6 +3889,7 @@ index b74293a..e8fc1c1 100644
 +                };
 +            },
 +            processAsync: async (migrationItem, logSpinner) => {
++                config.onItem(migrationItem);
 +                const contentItem = findRequired(
 +                    config.preparedContentItems,
 +                    (item) => item.inputItem.system.codename === migrationItem.system.codename,
@@ -3783,8 +3964,25 @@ index 6c81f17..641fa1c 100644
 +    timestamp: 'Thu, 02 Jan 2025 12:45:27 GMT',
 +    version: '2.4.0'
  };
+diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/export-action.ts b/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/export-action.ts
+index df931df..bea8890 100644
+--- a/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/export-action.ts
++++ b/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/export-action.ts
+@@ -32,7 +32,11 @@ export async function exportActionAsync(cliFetcher: CliArgumentsFetcher): Promis
+                 itemCodename: m,
+                 languageCodename: language
+             };
+-        })
++        }),
++        onAction: () => undefined,
++        onAsset: () => undefined,
++        onElement: () => undefined,
++        onItem: () => undefined
+     });
+ 
+     await storeAsync({
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/import-action.ts b/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/import-action.ts
-index c52c226..2fa695c 100644
+index c52c226..a9ef3e2 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/import-action.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/import-action.ts
 @@ -7,6 +7,7 @@ export async function importActionAsync(argsFetcher: CliArgumentsFetcher): Promi
@@ -3795,27 +3993,35 @@ index c52c226..2fa695c 100644
      const force = argsFetcher.getBooleanArgumentValue('force', false);
      const filename = argsFetcher.getOptionalArgumentValue('filename') ?? defaultZipFilename;
  
-@@ -27,7 +28,8 @@ export async function importActionAsync(argsFetcher: CliArgumentsFetcher): Promi
+@@ -27,7 +28,12 @@ export async function importActionAsync(argsFetcher: CliArgumentsFetcher): Promi
          data: importData,
          baseUrl: baseUrl,
          environmentId: environmentId,
 -        apiKey: apiKey
 +        apiKey: apiKey,
-+        createReportFile: createReportFile
++        createReportFile: createReportFile,
++        onAction: () => undefined,
++        onAsset: () => undefined,
++        onElement: () => undefined,
++        onItem: () => undefined
      });
  
      log.log({ type: 'completed', message: `Import has been successful` });
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/migrate-action.ts b/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/migrate-action.ts
-index ddda356..6529dc9 100644
+index ddda356..ec1893d 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/migrate-action.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/node/cli/actions/migrate-action.ts
-@@ -45,7 +45,8 @@ export async function migrateActionAsync(argsFetcher: CliArgumentsFetcher): Prom
+@@ -45,7 +45,12 @@ export async function migrateActionAsync(argsFetcher: CliArgumentsFetcher): Prom
          targetEnvironment: {
              environmentId: targetEnvironmentId,
              apiKey: targetApiKey
 -        }
 +        },
-+        mapMigrationData: (data) => data
++        mapMigrationData: (data) => data,
++        onAction: () => undefined,
++        onAsset: () => undefined,
++        onElement: () => undefined,
++        onItem: () => undefined
      });
  
      log.log({ type: 'completed', message: `Migration has been successful` });
@@ -3873,26 +4079,79 @@ index 35d590d..e428f9b 100644
          logger: config.logger
      });
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/toolkit/migrate.ts b/node_modules/@kontent-ai/migration-toolkit/lib/toolkit/migrate.ts
-index 77cfebb..20e8b95 100644
+index 77cfebb..c966075 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/toolkit/migrate.ts
 +++ b/node_modules/@kontent-ai/migration-toolkit/lib/toolkit/migrate.ts
-@@ -23,6 +23,7 @@ export interface MigrationConfig {
+@@ -1,17 +1,21 @@
+ import { IRetryStrategyOptions } from '@kontent-ai/core-sdk';
+ import {
+     ExternalIdGenerator,
++    FlattenedContentTypeElement,
+     Logger,
+     ManagementClientConfig,
++    MigrationAsset,
+     MigrationData,
++    MigrationItem,
+     executeWithTrackingAsync,
+     getDefaultLogger
+ } from '../core/index.js';
+-import { SourceExportItem } from '../export/index.js';
++import { ExportItem, SourceExportItem } from '../export/index.js';
+ import { ImportResult } from '../import/index.js';
+ import { libMetadata } from '../metadata.js';
+ import { exportAsync } from './export.js';
+ import { importAsync } from './import.js';
++import { AssetModels } from '@kontent-ai/management-sdk';
+ 
+ export interface MigrationSource extends ManagementClientConfig {
+     readonly items: readonly SourceExportItem[];
+@@ -23,6 +27,11 @@ export interface MigrationConfig {
      readonly logger?: Logger;
      readonly sourceEnvironment: MigrationSource;
      readonly targetEnvironment: ManagementClientConfig;
 +    readonly mapMigrationData: (data: MigrationData) => MigrationData;
++    readonly onAction: (action: string | null) => void;
++    readonly onItem: (item: ExportItem | MigrationItem | null) => void;
++    readonly onElement: (element: FlattenedContentTypeElement | string | null) => void;
++    readonly onAsset: (asset: AssetModels.Asset | MigrationAsset | null) => void;
  }
  
  export interface MigrationResult {
-@@ -56,7 +57,7 @@ export async function migrateAsync(config: MigrationConfig): Promise<MigrationRe
+@@ -47,19 +56,31 @@ export async function migrateAsync(config: MigrationConfig): Promise<MigrationRe
+             }
+         },
+         func: async () => {
++            config.onAction('content-export');
+             const migrationData = await exportAsync({
+                 ...config.sourceEnvironment,
+                 logger: logger,
+-                exportItems: config.sourceEnvironment.items
++                exportItems: config.sourceEnvironment.items,
++                onAction: config.onAction,
++                onItem: config.onItem,
++                onElement: config.onElement,
++                onAsset: config.onAsset
+             });
+ 
++            config.onAction('content-import');
              const importResult = await importAsync({
                  ...config.targetEnvironment,
                  logger: logger,
 -                data: migrationData,
+-                externalIdGenerator: config.externalIdGenerator
 +                data: config.mapMigrationData(migrationData),
-                 externalIdGenerator: config.externalIdGenerator
++                externalIdGenerator: config.externalIdGenerator,
++                onAction: config.onAction,
++                onItem: config.onItem,
++                onElement: config.onElement,
++                onAsset: config.onAsset
              });
  
++            config.onAction(null);
++
+             return {
+                 importResult,
+                 migrationData
 diff --git a/node_modules/@kontent-ai/migration-toolkit/lib/translation/extraction/items-extraction.processor.ts b/node_modules/@kontent-ai/migration-toolkit/lib/translation/extraction/items-extraction.processor.ts
 index b4b2ebb..43ef75e 100644
 --- a/node_modules/@kontent-ai/migration-toolkit/lib/translation/extraction/items-extraction.processor.ts
